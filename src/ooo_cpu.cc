@@ -1,5 +1,6 @@
 #include "ooo_cpu.h"
 #include "set.h"
+#include "context_switch.h"
 
 // out-of-order core
 O3_CPU ooo_cpu[NUM_CPUS];
@@ -12,7 +13,11 @@ void O3_CPU::initialize_core()
 
 void O3_CPU::context_switch()
 {
-    // Implement module 1 here
+    // Two processes, xor suffices to switch between them
+    last_proc ^= 1
+
+    // General version, assume round robin scheduler
+    // last_proc = (last_proc+1)%NUM_PROCESSES
 }
 
 void O3_CPU::read_from_trace()
