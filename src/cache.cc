@@ -1176,8 +1176,11 @@ void CACHE::fill_cache(uint32_t set, uint32_t way, PACKET *packet)
   if (block[set][way].prefetch && (block[set][way].used == 0))
     pf_useless++;
 
-  if (block[set][way].valid == 0)
+  if (block[set][way].valid == 0){
     block[set][way].valid = 1;
+    block[set][way].s_bit = 1;
+    block[set][way].timestamp = current_core_cycle[packet->cpu];
+  }
   block[set][way].dirty = 0;
   block[set][way].prefetch = (packet->type == PREFETCH) ? 1 : 0;
   block[set][way].used = 0;
@@ -1220,7 +1223,7 @@ int CACHE::check_hit(PACKET *packet)
   // hit
   for (uint32_t way = 0; way < NUM_WAY; way++)
   {
-    if (block[set][way].valid && (block[set][way].tag == packet->address))
+    if (block[set][way].valid && (block[set][way].tag == packet->address) && block[set][way].s_bit)
     {
 
       match_way = way;
@@ -1257,6 +1260,7 @@ int CACHE::invalidate_entry(uint64_t inval_addr)
     {
 
       block[set][way].valid = 0;
+      block[set][way].s_bit = 0;
 
       match_way = way;
 
