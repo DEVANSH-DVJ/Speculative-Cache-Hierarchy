@@ -1,6 +1,7 @@
 #include "ooo_cpu.h"
 #include "set.h"
 #include "context_switch.h"
+#include "uncore.h"
 
 // out-of-order core
 O3_CPU ooo_cpu[NUM_CPUS];
@@ -9,15 +10,23 @@ uint32_t SCHEDULING_LATENCY = 0, EXEC_LATENCY = 0, DECODE_LATENCY = 0;
 
 void O3_CPU::initialize_core()
 {
+    for (uint8_t pid = 0; pid < NUM_PROCESSES; pid++)
+    {
+        process[pid].pid = pid;
+    }
 }
 
 void O3_CPU::context_switch()
 {
+    process[last_proc].save_s_data(&L1D,&L2C,&uncore.LLC);
+    
     // Two processes, xor suffices to switch between them
-    last_proc ^= 1
+    last_proc ^= 1;
 
     // General version, assume round robin scheduler
     // last_proc = (last_proc+1)%NUM_PROCESSES
+
+    process[last_proc].load_s_data(&L1D,&L2C,&uncore.LLC);
 }
 
 void O3_CPU::read_from_trace()

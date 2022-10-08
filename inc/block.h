@@ -30,6 +30,10 @@ public:
     // replacement state
     uint32_t lru;
 
+    // TimeCache specific
+    bool s_bit;
+    uint32_t timestamp;
+
     BLOCK()
     {
         valid = 0;
@@ -50,6 +54,9 @@ public:
         instr_id = 0;
 
         lru = 0;
+
+        s_bit = false;
+        timestamp = 0;
     };
 };
 

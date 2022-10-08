@@ -2,6 +2,7 @@
 #define OOO_CPU_H
 
 #include "cache.h"
+#include "context_switch.h"
 
 #ifdef CRC2_COMPILE
 #define STAT_PRINTING_PERIOD 1000000
@@ -93,6 +94,10 @@ public:
 
   // trace cache for previously decoded instructions
 
+  // Processes
+  PROCESS process[NUM_PROCESSES];
+  uint8_t last_proc;
+
   // constructor
   O3_CPU()
   {
@@ -170,6 +175,8 @@ public:
     RTS1_head = 0;
     RTS0_tail = 0;
     RTS1_tail = 0;
+
+    last_proc = 0;
   }
 
   // functions
