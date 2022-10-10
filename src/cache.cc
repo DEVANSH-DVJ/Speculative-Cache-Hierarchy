@@ -21,26 +21,38 @@ void CACHE::handle_fill()
     uint32_t mshr_index = MSHR.next_fill_index;
 
     // find victim
-    uint32_t set = get_set(MSHR.entry[mshr_index].address), way;
-    if (cache_type == IS_LLC)
-    {
-      way = llc_find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set, block[set], MSHR.entry[mshr_index].ip, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].type);
+    uint32_t set = get_set(MSHR.entry[mshr_index].address);
+    int way;
+    uint8_t do_update = 1;
+    way = check_hit(&MSHR.entry[mshr_index]);
+    if (way >= 0){
+      do_update = 0;
+      block[set][way].s_bit = 1;
     }
-    else
-      way = find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set, block[set], MSHR.entry[mshr_index].ip, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].type);
 
+    if (do_update)
+    {
+      if (cache_type == IS_LLC)
+      {
+        way = llc_find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set, block[set], MSHR.entry[mshr_index].ip, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].type);
+      }
+      else
+        way = find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set, block[set], MSHR.entry[mshr_index].ip, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].type);
+    }
 #ifdef LLC_BYPASS
     if ((cache_type == IS_LLC) && (way == LLC_WAY))
     { // this is a bypass that does not fill the LLC
 
-      // update replacement policy
-      if (cache_type == IS_LLC)
+      if (do_update)
       {
-        llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
+        // update replacement policy
+        if (cache_type == IS_LLC)
+        {
+          llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
+        }
+        else
+          update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
       }
-      else
-        update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
-
       // COLLECT STATS
       sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
       sim_access[fill_cpu][MSHR.entry[mshr_index].type]++;
@@ -152,19 +164,23 @@ void CACHE::handle_fill()
         cpu = 0;
       }
 
-      // update replacement policy
-      if (cache_type == IS_LLC)
+      if (do_update)
       {
-        llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
+        // update replacement policy
+        if (cache_type == IS_LLC)
+        {
+          llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
+        }
+        else
+          update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
+        
+        fill_cache(set, way, &MSHR.entry[mshr_index]);
       }
-      else
-        update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
 
       // COLLECT STATS
       sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
       sim_access[fill_cpu][MSHR.entry[mshr_index].type]++;
 
-      fill_cache(set, way, &MSHR.entry[mshr_index]);
 
       // RFO marks cache line dirty
       if (cache_type == IS_L1D)
@@ -257,8 +273,10 @@ void CACHE::handle_writeback()
     // access cache
     uint32_t set = get_set(WQ.entry[index].address);
     int way = check_hit(&WQ.entry[index]);
+    uint8_t block_hit = 0;
+    if (way >= 0){block_hit = (block[set][way].s_bit);}
 
-    if (way >= 0)
+    if (block_hit)
     { // writeback hit (or RFO hit for L1D)
 
       if (cache_type == IS_LLC)
@@ -578,8 +596,10 @@ void CACHE::handle_read()
       // access cache
       uint32_t set = get_set(RQ.entry[index].address);
       int way = check_hit(&RQ.entry[index]);
+      uint8_t block_hit = 0;
+      if (way >= 0){block_hit = (block[set][way].s_bit);}
 
-      if (way >= 0)
+      if (block_hit)
       { // read hit
 
         if (cache_type == IS_ITLB)
@@ -1223,7 +1243,7 @@ int CACHE::check_hit(PACKET *packet)
   // hit
   for (uint32_t way = 0; way < NUM_WAY; way++)
   {
-    if (block[set][way].valid && (block[set][way].tag == packet->address) && block[set][way].s_bit)
+    if (block[set][way].valid && (block[set][way].tag == packet->address))
     {
 
       match_way = way;
