@@ -43,16 +43,14 @@ void CACHE::handle_fill()
     if ((cache_type == IS_LLC) && (way == LLC_WAY))
     { // this is a bypass that does not fill the LLC
 
-      if (do_update)
+      // update replacement policy
+      if (cache_type == IS_LLC)
       {
-        // update replacement policy
-        if (cache_type == IS_LLC)
-        {
-          llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
-        }
-        else
-          update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
+        llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
       }
+      else
+        update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, 0, MSHR.entry[mshr_index].type, 0);
+
       // COLLECT STATS
       sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
       sim_access[fill_cpu][MSHR.entry[mshr_index].type]++;
@@ -164,16 +162,16 @@ void CACHE::handle_fill()
         cpu = 0;
       }
 
+      // update replacement policy
+      if (cache_type == IS_LLC)
+      {
+        llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
+      }
+      else
+        update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
+      
       if (do_update)
       {
-        // update replacement policy
-        if (cache_type == IS_LLC)
-        {
-          llc_update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
-        }
-        else
-          update_replacement_state(fill_cpu, set, way, MSHR.entry[mshr_index].full_addr, MSHR.entry[mshr_index].ip, block[set][way].full_addr, MSHR.entry[mshr_index].type, 0);
-        
         fill_cache(set, way, &MSHR.entry[mshr_index]);
       }
 
