@@ -25,7 +25,13 @@ void CACHE::handle_fill()
     int way;
     uint8_t do_update = 1;
     way = check_hit(&MSHR.entry[mshr_index]);
-    if (way >= 0){
+    
+    // If single cache type
+    //if ((way >= 0) && (cache_type == IS_L1D)){
+    
+    // All caches levels
+    if ((way >= 0)){
+    
       do_update = 0;
       block[set][way].s_bit = 1;
     }
@@ -272,7 +278,12 @@ void CACHE::handle_writeback()
     uint32_t set = get_set(WQ.entry[index].address);
     int way = check_hit(&WQ.entry[index]);
     uint8_t block_hit = 0;
+
+    // All cache levels
     if (way >= 0){block_hit = (block[set][way].s_bit);}
+
+    // Only one cache level
+    // if (way >= 0){if (cache_type == IS_L1D) block_hit = (block[set][way].s_bit);else block_hit = 1;}
 
     if (block_hit)
     { // writeback hit (or RFO hit for L1D)
@@ -595,7 +606,12 @@ void CACHE::handle_read()
       uint32_t set = get_set(RQ.entry[index].address);
       int way = check_hit(&RQ.entry[index]);
       uint8_t block_hit = 0;
+
+      // Al lcache levels
       if (way >= 0){block_hit = (block[set][way].s_bit);}
+
+      // For 1 cache level
+      // if (way >= 0){if (cache_type == IS_L1D) block_hit = (block[set][way].s_bit);else block_hit = 1;}
 
       if (block_hit)
       { // read hit
