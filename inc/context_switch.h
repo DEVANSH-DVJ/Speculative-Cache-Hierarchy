@@ -54,14 +54,14 @@ class PROCESS {
         s_data = S_BIT_DATA();
     }
 
-    void save_s_data (CACHE *L1, CACHE *L2, CACHE *L3)
+    void save_s_data (CACHE *L1, CACHE *L2, CACHE *L3, uint32_t cpu)
     {
         for (uint32_t set = 0; set < L1D_SET; set++)
         {
             for (uint32_t way = 0; way < L1D_WAY; way++)
             {    
                 s_data.s_bits_L1[set][way] = L1->block[set][way].s_bit;
-                s_data.ts_L1[set][way] = L1->block[set][way].timestamp;
+                s_data.ts_L1[set][way] = current_core_cycle[cpu];
             }
         }
         for (uint32_t set = 0; set < L2C_SET; set++)
@@ -69,7 +69,7 @@ class PROCESS {
             for (uint32_t way = 0; way < L2C_WAY; way++)
             {    
                 s_data.s_bits_L2[set][way] = L2->block[set][way].s_bit;
-                s_data.ts_L2[set][way] = L2->block[set][way].timestamp;
+                s_data.ts_L2[set][way] = current_core_cycle[cpu];
             }
         }
         for (uint32_t set = 0; set < LLC_SET; set++)
@@ -77,7 +77,7 @@ class PROCESS {
             for (uint32_t way = 0; way < LLC_WAY; way++)
             {    
                 s_data.s_bits_LLC[set][way] = L3->block[set][way].s_bit;
-                s_data.ts_LLC[set][way] = L3->block[set][way].timestamp;
+                s_data.ts_LLC[set][way] = current_core_cycle[cpu];
             }
         }
     }
@@ -91,7 +91,6 @@ class PROCESS {
                 uint32_t Ts = s_data.ts_L1[set][way];
                 uint32_t Tc = L1->block[set][way].timestamp;
                 L1->block[set][way].s_bit = (s_bit && (Ts >= Tc));
-                L1->block[set][way].timestamp = Ts;
             }
         }
         for (uint32_t set = 0; set < L2C_SET; set++)
@@ -102,7 +101,6 @@ class PROCESS {
                 uint32_t Ts = s_data.ts_L2[set][way];
                 uint32_t Tc = L2->block[set][way].timestamp;
                 L2->block[set][way].s_bit = (s_bit && (Ts >= Tc));
-                L2->block[set][way].timestamp = Ts;
             }
         }
         for (uint32_t set = 0; set < LLC_SET; set++)
@@ -113,7 +111,6 @@ class PROCESS {
                 uint32_t Ts = s_data.ts_LLC[set][way];
                 uint32_t Tc = L3->block[set][way].timestamp;
                 L3->block[set][way].s_bit = (s_bit && (Ts >= Tc));
-                L3->block[set][way].timestamp = Ts;
             }
         }
     }

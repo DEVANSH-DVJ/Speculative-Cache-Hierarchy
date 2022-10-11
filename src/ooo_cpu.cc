@@ -18,13 +18,13 @@ void O3_CPU::initialize_core()
 
 void O3_CPU::context_switch()
 {
-    process[last_proc].save_s_data(&L1D,&L2C,&uncore.LLC);
+    process[last_proc].save_s_data(&L1D,&L2C,&uncore.LLC,cpu);
     
     // Two processes, xor suffices to switch between them
-    last_proc ^= 1;
+    // last_proc ^= 1;
 
     // General version, assume round robin scheduler
-    // last_proc = (last_proc+1)%NUM_PROCESSES
+    last_proc = (last_proc+1)%NUM_PROCESSES;
 
     process[last_proc].load_s_data(&L1D,&L2C,&uncore.LLC);
 }
