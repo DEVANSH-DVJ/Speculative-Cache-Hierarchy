@@ -10,9 +10,17 @@
 #define NUM_INSTR_SOURCES 4
 
 // special registers that help us identify branches
+#ifndef QUALCOMM_TRACES
 #define REG_STACK_POINTER 6
 #define REG_FLAGS 25
 #define REG_INSTRUCTION_POINTER 26
+#endif
+
+#ifdef QUALCOMM_TRACES
+#define REG_STACK_POINTER 102
+#define REG_FLAGS 64
+#define REG_INSTRUCTION_POINTER 103
+#endif
 
 // branch types
 #define NOT_BRANCH 0
@@ -23,6 +31,13 @@
 #define BRANCH_INDIRECT_CALL 5
 #define BRANCH_RETURN 6
 #define BRANCH_OTHER 7
+
+#define BRANCH_DIRECT_JUMP_RESOLUTION_LATENCY 35
+#define BRANCH_DIRECT_CALL_RESOLUTION_LATENCY 40
+#define BRANCH_CONDITIONAL_RESOLUTION_LATENCY 37
+#define BRANCH_INDIRECT_RESOLUTION_LATENCY 112
+#define BRANCH_INDIRECT_CALL_RESOLUTION_LATENCY 87
+#define BRANCH_RETURN_RESOLUTION_LATENCY 31
 
 #include "set.h"
 
@@ -101,6 +116,7 @@ public:
   uint64_t instr_id, ip, fetch_producer, producer_id, translated_cycle,
       fetched_cycle, execute_begin_cycle, retired_cycle, event_cycle;
 
+  uint8_t speculative_bit; // --> 1 represents speculative instruction
   uint8_t is_branch, is_memory, branch_taken, branch_mispredicted,
       branch_prediction_made, translated, data_translated,
       source_added[NUM_INSTR_SOURCES],
@@ -132,7 +148,11 @@ public:
       registers_index_depend_on_me[NUM_INSTR_SOURCES];
 
   // memory addresses that may cause dependencies between instructions
-  uint64_t instruction_pa, data_pa, virtual_address, physical_address;
+  uint64_t instruction_pa, data_pa, virtual_address,
+      physical_address; //* instruction_pa is the physical address of the
+                        // instruction
+                        //* (instruction_pa >> 6) --> block address
+
   uint64_t destination_memory[NUM_INSTR_DESTINATIONS_SPARC]; // output memory
   uint64_t source_memory[NUM_INSTR_SOURCES];                 // input memory
   // int source_memory_outstanding[NUM_INSTR_SOURCES];  // a value of 2 here
@@ -164,6 +184,7 @@ public:
     retired_cycle = 0;
     event_cycle = 0;
 
+    speculative_bit = 0; //-> Committed Instruction by default
     is_branch = 0;
     is_memory = 0;
     branch_taken = 0;

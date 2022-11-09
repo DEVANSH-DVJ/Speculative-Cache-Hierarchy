@@ -1,12 +1,16 @@
 #include "block.h"
 
+// returns -1 if the Queue is empty, else returns the index of the duplicate
+// entry.
 int PACKET_QUEUE::check_queue(PACKET *packet) {
+  // return -1 if the Queue is empty
   if ((head == tail) && occupancy == 0)
     return -1;
 
   if (head < tail) {
     for (uint32_t i = head; i < tail; i++) {
-      if (NAME == "L1D_WQ") {
+      if (NAME == "L0D_WQ") { //* L0D_CACHE -> L0D cache communicates with
+                              // full_addr with the core.
         if (entry[i].full_addr == packet->full_addr) {
           DP(if (warmup_complete[packet->cpu]) {
             cout << "[" << NAME << "] " << __func__ << " cpu: " << packet->cpu
@@ -28,13 +32,23 @@ int PACKET_QUEUE::check_queue(PACKET *packet) {
                  << " by instr_id: " << entry[i].instr_id << " index: " << i;
             cout << " cycle " << packet->event_cycle << endl;
           });
+
+          if (packet->type == 2) { // type == PREFETCH
+            if (packet->cpu != entry[i].cpu) {
+              cout << "Merging different cpu packets in LLC"
+                   << "  addr: " << hex << packet->address << dec
+                   << " fill_level: " << packet->fill_level << endl;
+            }
+          }
+
           return i;
         }
       }
     }
   } else {
     for (uint32_t i = head; i < SIZE; i++) {
-      if (NAME == "L1D_WQ") {
+      if (NAME == "L0D_WQ") { //* L0D_CACHE -> Now L0D cache communicates with
+                              // full_addr with the core.
         if (entry[i].full_addr == packet->full_addr) {
           DP(if (warmup_complete[packet->cpu]) {
             cout << "[" << NAME << "] " << __func__ << " cpu: " << packet->cpu
@@ -56,12 +70,22 @@ int PACKET_QUEUE::check_queue(PACKET *packet) {
                  << " by instr_id: " << entry[i].instr_id << " index: " << i;
             cout << " cycle " << packet->event_cycle << endl;
           });
+
+          if (packet->type == 2) { // type == PREFETCH
+            if (packet->cpu != entry[i].cpu) {
+              cout << "Merging different cpu packets in LLC"
+                   << "  addr: " << hex << packet->address << dec
+                   << " fill_level: " << packet->fill_level << endl;
+            }
+          }
+
           return i;
         }
       }
     }
     for (uint32_t i = 0; i < tail; i++) {
-      if (NAME == "L1D_WQ") {
+      if (NAME == "L0D_WQ") { //* L0D_CACHE -> Now L0D cache communicates with
+                              // full_addr with the core.
         if (entry[i].full_addr == packet->full_addr) {
           DP(if (warmup_complete[packet->cpu]) {
             cout << "[" << NAME << "] " << __func__ << " cpu: " << packet->cpu
@@ -83,6 +107,15 @@ int PACKET_QUEUE::check_queue(PACKET *packet) {
                  << " by instr_id: " << entry[i].instr_id << " index: " << i;
             cout << " cycle " << packet->event_cycle << endl;
           });
+
+          if (packet->type == 2) { // type == PREFETCH
+            if (packet->cpu != entry[i].cpu) {
+              cout << "Merging different cpu packets in LLC"
+                   << "  addr: " << hex << packet->address << dec
+                   << " fill_level: " << packet->fill_level << endl;
+            }
+          }
+
           return i;
         }
       }
@@ -123,7 +156,7 @@ void PACKET_QUEUE::remove_queue(PACKET *packet) {
     assert(0);
 #endif
 
-  DP(if (warmup_complete[packet->cpu]) {
+  DPT(if (warmup_complete[packet->cpu]) {
     cout << "[" << NAME << "] " << __func__ << " cpu: " << packet->cpu
          << " instr_id: " << packet->instr_id;
     cout << " address: " << hex << packet->address

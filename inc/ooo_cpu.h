@@ -3,6 +3,135 @@
 
 #include "cache.h"
 
+//------------------------------------------ My #defines
+//-----------------------------------------------------------------
+// extern uint64_t lateness_percent_evaluate_count;
+extern uint64_t commit_read_counter;
+extern uint64_t total_loads, non_spec_loads;
+extern uint64_t inst_total_loads, inst_non_spec_loads;
+
+#if defined(PREFETCH_ON_COMMIT_L1I) || defined(SPEC_COMMIT_L1I)
+
+class L1I_PREFETCHER_PARAMS {
+public:
+  uint64_t ip;
+
+  uint32_t cpu;
+
+  uint8_t cache_hit, prefetch_hit;
+
+  L1I_PREFETCHER_PARAMS() {
+    ip = 0;
+    cpu = NUM_CPUS;
+    cache_hit = 0;
+    prefetch_hit = 0;
+  }
+};
+
+#endif
+
+#if defined(PREFETCH_ON_COMMIT_L1D) || defined(SPEC_COMMIT_L1D) ||             \
+    defined(GHOST_PREFETCHING)
+
+class PREFETCHER_REQUEST_PARAMS {
+public:
+  uint64_t addr, ip, instr_id, curr_cycle;
+
+  uint32_t cpu;
+
+  uint8_t cache_hit, type;
+
+  PREFETCHER_REQUEST_PARAMS() {
+    addr = 0;
+    ip = 0;
+    instr_id = 0;
+    curr_cycle = 0;
+    cache_hit = 0;
+    type = 0;
+    cpu = NUM_CPUS;
+  }
+};
+
+class PREFETCHER_CACHE_FILL_PARAMS {
+public:
+  uint64_t addr, evicted_addr, instr_id, curr_cycle;
+
+  uint32_t set, way, metadata_in, cpu;
+
+  uint8_t prefetch;
+
+  PREFETCHER_CACHE_FILL_PARAMS() {
+    addr = 0;
+    evicted_addr = 0;
+    instr_id = 0;
+    curr_cycle = 0;
+    set = 0;
+    way = 0;
+    metadata_in = 0;
+    prefetch = 0;
+    cpu = NUM_CPUS;
+  }
+};
+
+#endif
+
+#if defined(PREFETCH_ON_COMMIT_L2C) || defined(SPEC_COMMIT_L2C)
+
+class L2C_PREFETCHER_REQUEST_PARAMS {
+public:
+  uint64_t addr, ip, instr_id, curr_cycle;
+
+  uint32_t metadata_in, cpu;
+
+  uint8_t cache_hit, type, from_handle_prefetch;
+
+  int PQ_index;
+
+  L2C_PREFETCHER_REQUEST_PARAMS() {
+    addr = 0;
+    ip = 0;
+    instr_id = 0;
+    curr_cycle = 0;
+    metadata_in = 0;
+    cache_hit = 0;
+    type = 0;
+    PQ_index = 0;
+    from_handle_prefetch = 2;
+    cpu = NUM_CPUS;
+  }
+};
+
+class L2C_CACHE_FILL_PARAMS {
+public:
+  uint64_t addr, evicted_addr, instr_id, curr_cycle;
+
+  uint32_t set, way, metadata_in, mshr_index, cpu;
+
+  uint8_t prefetch,
+      isMSHR; // To know if it's from MSHR or WQ.
+
+  int wq_index;
+
+  L2C_CACHE_FILL_PARAMS() {
+    addr = 0;
+    evicted_addr = 0;
+    instr_id = 0;
+    curr_cycle = 0;
+    set = 0;
+    way = 0;
+    metadata_in = 0;
+    prefetch = 0;
+    isMSHR = 2;
+    mshr_index = 0;
+    wq_index = 0;
+    cpu = NUM_CPUS;
+  }
+};
+
+#endif
+
+//-------------------------------------------------------------------------------------------------------------------------
+
 #ifdef CRC2_COMPILE
 #define STAT_PRINTING_PERIOD 1000000
 #else
@@ -31,6 +160,28 @@ extern uint32_t SCHEDULING_LATENCY, EXEC_LATENCY, DECODE_LATENCY;
 
 // cpu
 class O3_CPU {
+  //*------------------- Bookeeping variables -------------------
+public:
+  uint64_t curr_num_retired_flag; // Flag to monitor the checkpoint for number
+                                  // of retired instructions.
+
+#if defined(PREFETCH_ON_COMMIT_L1I) || defined(SPEC_COMMIT_L1I)
+  std::map<uint64_t, L1I_PREFETCHER_PARAMS> prefetcher_map_L1I;
+#endif
+
+#if defined(PREFETCH_ON_COMMIT_L1D) || defined(SPEC_COMMIT_L1D) ||             \
+    defined(GHOST_PREFETCHING)
+  std::map<uint64_t, PREFETCHER_REQUEST_PARAMS> prefetcher_map_L1D;
+  std::map<uint64_t, PREFETCHER_CACHE_FILL_PARAMS> cache_fill_map_L1D;
+#endif
+
+#if defined(PREFETCH_ON_COMMIT_L2C) || defined(SPEC_COMMIT_L2C)
+  std::map<uint64_t, L2C_PREFETCHER_REQUEST_PARAMS> prefetcher_map_L2C;
+  std::map<uint64_t, L2C_CACHE_FILL_PARAMS> cache_fill_map_L2C;
+#endif
+
+  //*------------------------------------------------
+
 public:
   uint32_t cpu;
 
@@ -98,11 +249,22 @@ public:
           L1D_WQ_SIZE, L1D_RQ_SIZE, L1D_PQ_SIZE, L1D_MSHR_SIZE},
       L2C{"L2C",       L2C_SET,     L2C_WAY,     L2C_SET *L2C_WAY,
           L2C_WQ_SIZE, L2C_RQ_SIZE, L2C_PQ_SIZE, L2C_MSHR_SIZE};
+#ifdef L0D_CACHE
+  CACHE L0D{"L0D",       L0D_SET,     L0D_WAY,     L0D_SET *L0D_WAY,
+            L0D_WQ_SIZE, L0D_RQ_SIZE, L0D_PQ_SIZE, L0D_MSHR_SIZE};
+#endif
+#ifdef L0I_CACHE
+  CACHE L0I{"L0I",       L0I_SET,     L0I_WAY,     L0I_SET *L0I_WAY,
+            L0I_WQ_SIZE, L0I_RQ_SIZE, L0I_PQ_SIZE, L0I_MSHR_SIZE};
+#endif
 
   // trace cache for previously decoded instructions
 
   // constructor
   O3_CPU() {
+
+    curr_num_retired_flag = 1000000;
+
     cpu = 0;
 
     // trace
@@ -203,6 +365,7 @@ public:
   void check_dependency(int prior, int current);
   void operate_cache();
   void update_rob();
+  int commit_blocks(ooo_model_instr *arch_instr);
   void retire_rob();
 
   uint32_t add_to_rob(ooo_model_instr *arch_instr),
@@ -222,13 +385,32 @@ public:
   void l1i_prefetcher_initialize();
   void l1i_prefetcher_branch_operate(uint64_t ip, uint8_t branch_type,
                                      uint64_t branch_target);
+
+#ifdef SPEC_COMMIT_L1I
+  void l1i_prefetcher_cache_operate(uint64_t v_addr, uint8_t cache_hit,
+                                    uint8_t prefetch_hit,
+                                    uint8_t speculative_bit);
+#endif
+#ifndef SPEC_COMMIT_L1I
   void l1i_prefetcher_cache_operate(uint64_t v_addr, uint8_t cache_hit,
                                     uint8_t prefetch_hit);
+#endif
+
   void l1i_prefetcher_cycle_operate();
   void l1i_prefetcher_cache_fill(uint64_t v_addr, uint32_t set, uint32_t way,
                                  uint8_t prefetch, uint64_t evicted_v_addr);
   void l1i_prefetcher_final_stats();
+
+#ifndef SPEC_COMMIT_L1I
   int prefetch_code_line(uint64_t pf_v_addr);
+#endif
+
+#ifdef SPEC_COMMIT_L1I
+  int prefetch_code_line(uint64_t pf_v_addr, uint8_t is_FNL,
+                         uint8_t speculative_bit);
+  void PrefCodeBlock(uint64_t pf_Block, uint8_t is_FNL,
+                     uint8_t speculative_bit);
+#endif
 };
 
 extern O3_CPU ooo_cpu[NUM_CPUS];

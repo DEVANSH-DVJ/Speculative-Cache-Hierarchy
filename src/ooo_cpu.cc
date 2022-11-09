@@ -1,17 +1,57 @@
 #include "ooo_cpu.h"
 #include "set.h"
 
+//-------------------------------------- My #defines
+//-------------------------------------------------------------
+#include <cstdlib>
+// ==> Declared in cache.h
+//-------------------------------------- My global variables
+//-------------------------------------------------------------
+//* GLOBAL VARIABLES
+uint64_t commit_read_counter = 0;
+uint64_t speculative_load_counter = 1;
+uint64_t inst_speculative_load_counter = 1;
+uint64_t total_loads = 0, non_spec_loads = 0;
+uint64_t inst_total_loads = 0, inst_non_spec_loads = 0;
+
+// double current_ipc = 0;
+// uint64_t run_count = 0,
+//          last_core_cycles = 0;
+// epoch = 3000;                    // <-- IPCP: Number of accesses to the
+// prefetcher_operate function.
+/*
+uint64_t last_core_cycles = 0;
+uint64_t epoch = 21000;
+uint32_t dynamic_distance = 0,
+                                                                        chances
+= 3, best_ipc_at = 0; double last_ipc = 0, curr_avg = 0, prev_avg = 0, best_ipc
+= 0; bool degradation_started = false, stabilize = false, first = true;
+
+
+double LAST_IPC_BUFFER[N_IPC_HISTORY];
+uint32_t ipc_buffer_index = 0,
+                                                                        avg_ipc_counter
+= 0;
+*/
+//----------------------------------------------------------------------------------------------------------------
+
 // out-of-order core
 O3_CPU ooo_cpu[NUM_CPUS];
 uint64_t current_core_cycle[NUM_CPUS], stall_cycle[NUM_CPUS];
+//@Sumon: Whenever a correctly predicted branch is encountered,
+// we will start a timer set to the average branch resolution latency of the
+// current instruction Till the timer expires, all instructions are marked to be
+// speculative
+uint64_t branch_resolution_timer[NUM_CPUS];
 uint32_t SCHEDULING_LATENCY = 0, EXEC_LATENCY = 0, DECODE_LATENCY = 0;
 
 void O3_CPU::initialize_core() {}
 
 void O3_CPU::read_from_trace() {
   // actual processors do not work like this but for easier implementation,
-  // we read instruction traces and virtually add them in the ROB
-  // note that these traces are not yet translated and fetched
+  // we read instruction traces and virtually add them in the ROB (@Sumon:
+  // probably wrong, must be IFETCH_BUFFER) note that these traces are not yet
+  // translated and fetched
 
   uint8_t continue_reading = 1;
   uint32_t num_reads = 0;
@@ -20,9 +60,12 @@ void O3_CPU::read_from_trace() {
   // first, read PIN trace
   while (continue_reading) {
 
+    // cout << "spec bit: " << uint32_t(global_speculative_bit) << endl;
+
     size_t instr_size =
         knob_cloudsuite ? sizeof(cloudsuite_instr) : sizeof(input_instr);
 
+    // Tarun: We are not modelling the cloudsuite instructions.
     if (knob_cloudsuite) {
       if (!fread(&current_cloudsuite_instr, instr_size, 1, trace_file)) {
         // reached end of file for this trace
@@ -104,6 +147,7 @@ void O3_CPU::read_from_trace() {
 
         // add this instruction to the IFETCH_BUFFER
         if (IFETCH_BUFFER.occupancy < IFETCH_BUFFER.SIZE) {
+
           uint32_t ifetch_buffer_index = add_to_ifetch_buffer(&arch_instr);
           num_reads++;
 
@@ -140,6 +184,7 @@ void O3_CPU::read_from_trace() {
               }
             }
 
+            // notifying the branch predictor.
             last_branch_result(
                 IFETCH_BUFFER.entry[ifetch_buffer_index].ip,
                 IFETCH_BUFFER.entry[ifetch_buffer_index].branch_taken);
@@ -151,7 +196,9 @@ void O3_CPU::read_from_trace() {
         }
         instr_unique_id++;
       }
-    } else {
+    }
+
+    else {
       input_instr trace_read_instr;
       if (!fread(&trace_read_instr, instr_size, 1, trace_file)) {
         // reached end of file for this trace
@@ -167,7 +214,9 @@ void O3_CPU::read_from_trace() {
                << endl;
           assert(0);
         }
-      } else { // successfully read the trace
+      }
+
+      else { // successfully read the trace
 
         if (instr_unique_id == 0) {
           current_instr = next_instr = trace_read_instr;
@@ -178,6 +227,9 @@ void O3_CPU::read_from_trace() {
 
         // copy the instruction into the performance model's instruction format
         ooo_model_instr arch_instr;
+
+        //* Speculative_bit assigning moved to source_memory if block.
+
         int num_reg_ops = 0, num_mem_ops = 0;
 
         arch_instr.instr_id = instr_unique_id;
@@ -195,6 +247,7 @@ void O3_CPU::read_from_trace() {
         bool writes_ip = false;
         bool reads_other = false;
 
+        // virtual addresses for the stores being saved to destination_*[] array
         for (uint32_t i = 0; i < MAX_INSTR_DESTINATIONS; i++) {
           arch_instr.destination_registers[i] =
               current_instr.destination_registers[i];
@@ -219,14 +272,15 @@ void O3_CPU::read_from_trace() {
           /*
           if((arch_instr.is_branch) && (arch_instr.destination_registers[i] >
           24) && (arch_instr.destination_registers[i] < 28))
-            {
-              arch_instr.destination_registers[i] = 0;
-            }
+                          {
+          arch_instr.destination_registers[i] = 0;
+                          }
           */
 
           if (arch_instr.destination_registers[i])
             num_reg_ops++;
           if (arch_instr.destination_memory[i]) {
+
             num_mem_ops++;
 
             // update STA, this structure is required to execute store
@@ -247,6 +301,7 @@ void O3_CPU::read_from_trace() {
           }
         }
 
+        // virtual addresses of the loads being stored to source_*[] array
         for (int i = 0; i < NUM_INSTR_SOURCES; i++) {
           arch_instr.source_registers[i] = current_instr.source_registers[i];
           arch_instr.source_memory[i] = current_instr.source_memory[i];
@@ -272,63 +327,87 @@ void O3_CPU::read_from_trace() {
           /*
           if((!arch_instr.is_branch) && (arch_instr.source_registers[i] > 25) &&
           (arch_instr.source_registers[i] < 28))
-            {
-              arch_instr.source_registers[i] = 0;
-            }
+                          {
+          arch_instr.source_registers[i] = 0;
+                          }
           */
 
           if (arch_instr.source_registers[i])
             num_reg_ops++;
-          if (arch_instr.source_memory[i])
+
+          // Represents a LOAD instruction
+          if (arch_instr.source_memory[i]) {
             num_mem_ops++;
+
+#ifdef NON_SPEC_10TH_LOAD
+            //* @Tarun: Assigning the speculative bit. Every 10th instruction is
+            // non-speculative.
+            total_loads++;
+            if (speculative_load_counter == 10) {
+              arch_instr.speculative_bit = 0;
+              non_spec_loads++;
+            } else {
+              arch_instr.speculative_bit = SPECULATIVE_BIT;
+            }
+            speculative_load_counter = speculative_load_counter % 10;
+            speculative_load_counter++;
+#endif
+          }
         }
+
+#ifndef NON_SPEC_10TH_LOAD
+        // Makes every instruction as speculative.
+        arch_instr.speculative_bit = 1;
+#endif
 
         arch_instr.num_reg_ops = num_reg_ops;
         arch_instr.num_mem_ops = num_mem_ops;
-        if (num_mem_ops > 0)
+        if (num_mem_ops > 0) {
           arch_instr.is_memory = 1;
+        }
 
         // determine what kind of branch this is, if any
         if (!reads_sp && !reads_flags && writes_ip && !reads_other) {
           // direct jump
           arch_instr.is_branch = 1;
           arch_instr.branch_taken = 1;
-          arch_instr.branch_type = BRANCH_DIRECT_JUMP;
+          arch_instr.branch_type =
+              BRANCH_DIRECT_JUMP; // Non-spec     -> always will be committed
         } else if (!reads_sp && !reads_flags && writes_ip && reads_other) {
           // indirect branch
           arch_instr.is_branch = 1;
           arch_instr.branch_taken = 1;
-          arch_instr.branch_type = BRANCH_INDIRECT;
+          arch_instr.branch_type = BRANCH_INDIRECT; // speculative
         } else if (!reads_sp && reads_ip && !writes_sp && writes_ip &&
                    reads_flags && !reads_other) {
           // conditional branch
           arch_instr.is_branch = 1;
           arch_instr.branch_taken =
-              arch_instr.branch_taken; // don't change this
-          arch_instr.branch_type = BRANCH_CONDITIONAL;
+              arch_instr.branch_taken;                 // don't change this
+          arch_instr.branch_type = BRANCH_CONDITIONAL; // speculative
         } else if (reads_sp && reads_ip && writes_sp && writes_ip &&
                    !reads_flags && !reads_other) {
           // direct call
           arch_instr.is_branch = 1;
           arch_instr.branch_taken = 1;
-          arch_instr.branch_type = BRANCH_DIRECT_CALL;
+          arch_instr.branch_type = BRANCH_DIRECT_CALL; // Non-spec
         } else if (reads_sp && reads_ip && writes_sp && writes_ip &&
                    !reads_flags && reads_other) {
           // indirect call
           arch_instr.is_branch = 1;
           arch_instr.branch_taken = 1;
-          arch_instr.branch_type = BRANCH_INDIRECT_CALL;
+          arch_instr.branch_type = BRANCH_INDIRECT_CALL; // speculative
         } else if (reads_sp && !reads_ip && writes_sp && writes_ip) {
           // return
           arch_instr.is_branch = 1;
           arch_instr.branch_taken = 1;
-          arch_instr.branch_type = BRANCH_RETURN;
+          arch_instr.branch_type = BRANCH_RETURN; // speculative
         } else if (writes_ip) {
           // some other branch type that doesn't fit the above categories
           arch_instr.is_branch = 1;
           arch_instr.branch_taken =
-              arch_instr.branch_taken; // don't change this
-          arch_instr.branch_type = BRANCH_OTHER;
+              arch_instr.branch_taken;           // don't change this
+          arch_instr.branch_type = BRANCH_OTHER; // speculative
         }
 
         total_branch_types[arch_instr.branch_type]++;
@@ -336,6 +415,9 @@ void O3_CPU::read_from_trace() {
         if ((arch_instr.is_branch == 1) && (arch_instr.branch_taken == 1)) {
           arch_instr.branch_target = next_instr.ip;
         }
+
+        // @Tarun: Addition of instruction to IFETCH BUFFER after this.
+        // ---------------------------------------------------
 
         // add this instruction to the IFETCH_BUFFER
         if (IFETCH_BUFFER.occupancy < IFETCH_BUFFER.SIZE) {
@@ -421,7 +503,7 @@ uint32_t O3_CPU::add_to_rob(ooo_model_instr *arch_instr) {
   if (ROB.tail >= ROB.SIZE)
     ROB.tail = 0;
 
-  DP(if (warmup_complete[cpu]) {
+  DPT(if (warmup_complete[cpu]) {
     cout << "[ROB] " << __func__ << " instr_id: " << ROB.entry[index].instr_id;
     cout << " ip: " << hex << ROB.entry[index].ip << dec;
     cout << " head: " << ROB.head << " tail: " << ROB.tail
@@ -445,23 +527,27 @@ uint32_t O3_CPU::add_to_rob(ooo_model_instr *arch_instr) {
 uint32_t O3_CPU::add_to_ifetch_buffer(ooo_model_instr *arch_instr) {
   /*
   if((arch_instr->is_branch != 0) && (arch_instr->branch_type == BRANCH_OTHER))
-    {
-      cout << "IP: 0x" << hex << (uint64_t)(arch_instr->ip) << " branch_target:
-  0x" << (uint64_t)(arch_instr->branch_target) << dec << endl; cout <<
+                   {
+                                   cout << "IP: 0x" << hex <<
+  (uint64_t)(arch_instr->ip) << " branch_target: 0x" <<
+  (uint64_t)(arch_instr->branch_target) << dec << endl; cout <<
   (uint32_t)(arch_instr->is_branch) << " " <<
   (uint32_t)(arch_instr->branch_type) << " " <<
   (uint32_t)(arch_instr->branch_taken) << endl; for(uint32_t i=0;
   i<NUM_INSTR_SOURCES; i++)
-        {
-          cout << (uint32_t)(arch_instr->source_registers[i]) << " ";
-        }
-      cout << endl;
-      for (uint32_t i=0; i<MAX_INSTR_DESTINATIONS; i++)
-        {
-          cout << (uint32_t)(arch_instr->destination_registers[i]) << " ";
-        }
-      cout << endl << endl;
-    }
+                   {
+                                   cout <<
+  (uint32_t)(arch_instr->source_registers[i]) << " ";
+                   }
+                                   cout << endl;
+                                   for (uint32_t i=0; i<MAX_INSTR_DESTINATIONS;
+  i++)
+                   {
+                                   cout <<
+  (uint32_t)(arch_instr->destination_registers[i]) << " ";
+                   }
+                                   cout << endl << endl;
+                   }
   */
 
   uint32_t index = IFETCH_BUFFER.tail;
@@ -476,7 +562,9 @@ uint32_t O3_CPU::add_to_ifetch_buffer(ooo_model_instr *arch_instr) {
   IFETCH_BUFFER.entry[index] = *arch_instr;
   IFETCH_BUFFER.entry[index].event_cycle = current_core_cycle[cpu];
 
-  // magically translate instructions
+  // TODO: Remove this magical translation of va_to_pa(). Instead translate
+  // using the actual ITLB request. Also do this for DTLB.
+  //  magically translate instructions
   uint64_t instr_pa = va_to_pa(
       cpu, IFETCH_BUFFER.entry[index].instr_id, IFETCH_BUFFER.entry[index].ip,
       (IFETCH_BUFFER.entry[index].ip) >> LOG2_PAGE_SIZE, 1);
@@ -498,6 +586,7 @@ uint32_t O3_CPU::add_to_ifetch_buffer(ooo_model_instr *arch_instr) {
   return index;
 }
 
+//* Returns the index of the DECODE_BUFFER where the entry was added.
 uint32_t O3_CPU::add_to_decode_buffer(ooo_model_instr *arch_instr) {
   uint32_t index = DECODE_BUFFER.tail;
 
@@ -565,8 +654,9 @@ uint32_t O3_CPU::check_rob(uint64_t instr_id) {
   return ROB.SIZE;
 }
 
+// Fetches the instruction to L0I cache for execution.
 void O3_CPU::fetch_instruction() {
-  // TODO: can we model wrong path execusion?
+  // TODO: can we model wrong path execution?
   // probalby not
 
   // if we had a branch mispredict, turn fetching back on after the branch
@@ -577,32 +667,39 @@ void O3_CPU::fetch_instruction() {
     fetch_resume_cycle = 0;
   }
 
-  if (IFETCH_BUFFER.occupancy == 0) {
+  if (IFETCH_BUFFER.occupancy ==
+      0) // No instruction exists in the IFETCH buffer.
+  {
     return;
   }
 
   // scan through IFETCH_BUFFER to find instructions that need to be translated
   uint32_t index = IFETCH_BUFFER.head;
   for (uint32_t i = 0; i < IFETCH_BUFFER.SIZE; i++) {
-    if (IFETCH_BUFFER.entry[index].ip == 0) {
+    if (IFETCH_BUFFER.entry[index].ip == 0) //* if entry is empty
+    {
       break;
     }
 
     if (IFETCH_BUFFER.entry[index].translated == 0) {
       // begin process of fetching this instruction by sending it to the ITLB
-      // add it to the ITLB's read queue
+      //* add it to the ITLB's read queue without setting speculative bit.
       PACKET trace_packet;
       trace_packet.instruction = 1;
       trace_packet.is_data = 0;
       trace_packet.tlb_access = 1;
-      trace_packet.fill_level = FILL_L1;
+
+      trace_packet.fill_level = FILL_L1; //* Because this only reads the ITLB
       trace_packet.fill_l1i = 1;
+
       trace_packet.cpu = cpu;
       trace_packet.address = IFETCH_BUFFER.entry[index].ip >> LOG2_PAGE_SIZE;
+
       if (knob_cloudsuite)
         trace_packet.address = IFETCH_BUFFER.entry[index].ip >> LOG2_PAGE_SIZE;
       else
         trace_packet.address = IFETCH_BUFFER.entry[index].ip >> LOG2_PAGE_SIZE;
+
       trace_packet.full_addr = IFETCH_BUFFER.entry[index].ip;
       trace_packet.instr_id = 0;
       trace_packet.rob_index = i;
@@ -626,6 +723,9 @@ void O3_CPU::fetch_instruction() {
             IFETCH_BUFFER.entry[j].fetched = 0;
           }
         }
+      } else {
+        // Cannot add to the RQ of ITLB
+        assert(0);
       }
     }
 
@@ -633,17 +733,86 @@ void O3_CPU::fetch_instruction() {
     // line that initiated the translation
     if ((IFETCH_BUFFER.entry[index].translated == COMPLETED) &&
         (IFETCH_BUFFER.entry[index].fetched == 0)) {
-      // add it to the L1-I's read queue
+      //* add it to the L0I's read queue               //* L0I_CACHE
       PACKET fetch_packet;
+
+      // Sumon: set branch resolution timer. All instructions will be classified
+      // to be speculative till the branch resolution timer expires
+#ifdef SPEC_INST_CLASSIFICATOIN
+      if (IFETCH_BUFFER.entry[index].is_branch &&
+          !IFETCH_BUFFER.entry[index].branch_mispredicted) {
+        switch (IFETCH_BUFFER.entry[index].branch_type) {
+        case BRANCH_DIRECT_JUMP:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_DIRECT_JUMP_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_DIRECT_CALL:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_DIRECT_CALL_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_CONDITIONAL:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_CONDITIONAL_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_INDIRECT:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_INDIRECT_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_INDIRECT_CALL:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_INDIRECT_CALL_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_RETURN:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_RETURN_RESOLUTION_LATENCY;
+          break;
+
+        default:
+          abort();
+        }
+      }
+      if (branch_resolution_timer[cpu] >= current_core_cycle[cpu]) {
+        fetch_packet.is_speculative = SPECULATIVE_BIT;
+      } else {
+        fetch_packet.is_speculative = 0;
+        inst_non_spec_loads++;
+      }
+      inst_total_loads++;
+#endif
+
+#ifdef NON_SPEC_10TH_IFETCH
+      //* 90% instruction fetch packets should have speculative bit = 1
+      inst_total_loads++;
+      if (inst_speculative_load_counter == 10) {
+        fetch_packet.is_speculative = 0;
+        inst_non_spec_loads++;
+      } else {
+        fetch_packet.is_speculative = SPECULATIVE_BIT;
+      }
+      inst_speculative_load_counter = inst_speculative_load_counter % 10;
+      inst_speculative_load_counter++;
+#endif
+
+#ifndef NON_SPEC_10TH_IFETCH
+#ifndef SPEC_INST_CLASSIFICATOIN
+      fetch_packet.is_speculative =
+          1; // Every instruction fetch is speculative since every 5th instn is
+             // branch and Fetch Width is 5.
+#endif
+#endif
+
       fetch_packet.instruction = 1;
       fetch_packet.is_data = 0;
-      fetch_packet.fill_level = FILL_L1;
+
+      fetch_packet.fill_level = FILL_L0; //* L0I_CACHE
       fetch_packet.fill_l1i = 1;
+      fetch_packet.fill_l0i = 1;
       fetch_packet.cpu = cpu;
       fetch_packet.address = IFETCH_BUFFER.entry[index].instruction_pa >> 6;
       fetch_packet.instruction_pa = IFETCH_BUFFER.entry[index].instruction_pa;
       fetch_packet.full_addr = IFETCH_BUFFER.entry[index].instruction_pa;
-      fetch_packet.instr_id = 0;
+
+      fetch_packet.instr_id = IFETCH_BUFFER.entry[index].instr_id;
       fetch_packet.rob_index = 0;
       fetch_packet.producer = 0;
       fetch_packet.ip = IFETCH_BUFFER.entry[index].ip;
@@ -652,20 +821,8 @@ void O3_CPU::fetch_instruction() {
       fetch_packet.asid[1] = 0;
       fetch_packet.event_cycle = current_core_cycle[cpu];
 
-      /*
-      // invoke code prefetcher -- THIS HAS BEEN MOVED TO cache.cc !!!
-      int hit_way = L1I.check_hit(&fetch_packet);
-      uint8_t prefetch_hit = 0;
-      if(hit_way != -1)
-        {
-          prefetch_hit =
-      L1I.block[L1I.get_set(fetch_packet.address)][hit_way].prefetch;
-        }
-      l1i_prefetcher_cache_operate(fetch_packet.ip, (hit_way != -1),
-      prefetch_hit);
-      */
-
-      int rq_index = L1I.add_rq(&fetch_packet);
+      //   cout << "Inst added to L0I" << endl;
+      int rq_index = L0I.add_rq(&fetch_packet); //* L0I_CACHE
 
       if (rq_index != -2) {
         // mark all instructions from this cache line as having been fetched
@@ -676,6 +833,9 @@ void O3_CPU::fetch_instruction() {
             IFETCH_BUFFER.entry[j].fetched = INFLIGHT;
           }
         }
+      } else {
+        // Cannot add to the RQ of L0I
+        assert(0);
       }
     }
 
@@ -707,6 +867,7 @@ void O3_CPU::fetch_instruction() {
             add_to_decode_buffer(&IFETCH_BUFFER.entry[IFETCH_BUFFER.head]);
         DECODE_BUFFER.entry[decode_index].event_cycle = 0;
 
+        //* Empty this entry of IFETCH_BUFFER
         ooo_model_instr empty_entry;
         IFETCH_BUFFER.entry[IFETCH_BUFFER.head] = empty_entry;
 
@@ -744,6 +905,7 @@ void O3_CPU::decode_and_dispatch() {
       uint32_t rob_index = add_to_rob(&DECODE_BUFFER.entry[DECODE_BUFFER.head]);
       ROB.entry[rob_index].event_cycle = current_core_cycle[cpu];
 
+      //* Empty this entry of DECODE_BUFFER
       ooo_model_instr empty_entry;
       DECODE_BUFFER.entry[DECODE_BUFFER.head] = empty_entry;
 
@@ -792,41 +954,157 @@ void O3_CPU::decode_and_dispatch() {
   }
 }
 
-int O3_CPU::prefetch_code_line(uint64_t pf_v_addr) {
+#ifndef SPEC_COMMIT_L1I
+int O3_CPU::prefetch_code_line(uint64_t pf_v_addr)
+#endif
+#ifdef SPEC_COMMIT_L1I
+    int O3_CPU::prefetch_code_line(uint64_t pf_v_addr, uint8_t is_FNL,
+                                   uint8_t speculative_bit)
+#endif
+{
+  // TODO: Add a parameter - is_speculative to call this function
+  //  If spec == 1 --> Issue the prefetch to L0I
+  //  If spec == 0 --> Issue the prefetch to L1I
+
   if (pf_v_addr == 0) {
     cerr << "Cannot prefetch code line 0x0 !!!" << endl;
     assert(0);
   }
 
-  L1I.pf_requested++;
+#ifdef SPEC_COMMIT_L1I
+  if (speculative_bit == 1) {
 
-  if (L1I.PQ.occupancy < L1I.PQ.SIZE) {
-    // magically translate prefetches
-    uint64_t pf_pa =
-        (va_to_pa(cpu, 0, pf_v_addr, pf_v_addr >> LOG2_PAGE_SIZE, 1) &
-         (~((1 << LOG2_PAGE_SIZE) - 1))) |
-        (pf_v_addr & ((1 << LOG2_PAGE_SIZE) - 1));
+    // prefetch to L0I
 
-    PACKET pf_packet;
-    pf_packet.instruction = 1; // this is a code prefetch
-    pf_packet.is_data = 0;
-    pf_packet.fill_level = FILL_L1;
-    pf_packet.fill_l1i = 1;
-    pf_packet.pf_origin_level = FILL_L1;
-    pf_packet.cpu = cpu;
+    L0I.pf_requested++;
 
-    pf_packet.address = pf_pa >> LOG2_BLOCK_SIZE;
-    pf_packet.full_addr = pf_pa;
+    if (L0I.PQ.occupancy < L0I.PQ.SIZE) {
+      // magically translate prefetches
+      uint64_t pf_pa =
+          (va_to_pa(cpu, 0, pf_v_addr, pf_v_addr >> LOG2_PAGE_SIZE, 1) &
+           (~((1 << LOG2_PAGE_SIZE) - 1))) |
+          (pf_v_addr & ((1 << LOG2_PAGE_SIZE) - 1));
+      // uint64_t pf_pa = pf_v_addr;
 
-    pf_packet.ip = pf_v_addr;
-    pf_packet.type = PREFETCH;
-    pf_packet.event_cycle = current_core_cycle[cpu];
+      PACKET pf_packet;
+      pf_packet.is_speculative =
+          1; // should be 1 for bypassing the lower levels
 
-    L1I.add_pq(&pf_packet);
-    L1I.pf_issued++;
+      pf_packet.instruction = 1; // this is a code prefetch
+      pf_packet.is_data = 0;
+      pf_packet.fill_level = FILL_L0;
+      pf_packet.fill_l1i = 1;
+      pf_packet.fill_l0i = 1;
+      pf_packet.pf_origin_level = FILL_L0;
 
-    return 1;
+#ifdef FNLMMA
+      pf_packet.is_FNL = is_FNL; //*@Tarun: is_FNL assigned here.
+#endif
+
+      pf_packet.address = pf_pa >> LOG2_BLOCK_SIZE;
+      pf_packet.full_addr = pf_pa;
+
+      //   cout << hex << "Old address: " << pf_packet.address << endl;
+      //   cout << hex << "Old full address: " << pf_packet.full_addr << endl;
+
+      //   pf_packet.address = (pf_pa >> LOG2_BLOCK_SIZE) +
+      //   ADD_PREFETCH_DISTANCE_L1I; pf_packet.full_addr = pf_pa + (
+      //   ADD_PREFETCH_DISTANCE_L1I << 6 );
+
+      //   cout << hex << "New address: " << pf_packet.address << endl;
+      //   cout << hex << "New full address: " << pf_packet.full_addr << endl;
+      //   cout << dec;
+
+      pf_packet.ip = pf_v_addr;
+      pf_packet.type = PREFETCH;
+      pf_packet.cpu = cpu;
+      pf_packet.instr_id = 0;
+      pf_packet.event_cycle = current_core_cycle[cpu];
+
+      L0I.add_pq(&pf_packet);
+      L0I.pf_issued++;
+
+      DPT(if (warmup_complete[cpu]) {
+        cout << "[L0I_PREFETCH] " << __func__ << " issuing prefetch;";
+        cout << " pf_v_addr: " << hex << pf_v_addr << dec;
+        cout << " pf_pa: " << hex << pf_pa << dec;
+        cout << " full_pa_addr: " << hex << pf_packet.full_addr << dec;
+        cout << " speculative_bit: " << uint32_t(pf_packet.is_speculative);
+        cout << " event_cycle: " << pf_packet.event_cycle;
+        cout << endl;
+      });
+
+      return 1;
+    }
   }
+
+  else {
+#endif
+    // prefetch to L1I
+
+    L1I.pf_requested++;
+
+    if (L1I.PQ.occupancy < L1I.PQ.SIZE) {
+      // magically translate prefetches
+      uint64_t pf_pa =
+          (va_to_pa(cpu, 0, pf_v_addr, pf_v_addr >> LOG2_PAGE_SIZE, 1) &
+           (~((1 << LOG2_PAGE_SIZE) - 1))) |
+          (pf_v_addr & ((1 << LOG2_PAGE_SIZE) - 1));
+
+      PACKET pf_packet;
+      pf_packet.is_speculative = 0; // committed prefetch block
+
+      pf_packet.instruction = 1;
+      pf_packet.is_data = 0;
+
+      pf_packet.fill_level = FILL_L1;
+      pf_packet.fill_l1i = 1;
+      pf_packet.fill_l0i = 0;
+      pf_packet.pf_origin_level = FILL_L1;
+
+      pf_packet.cpu = cpu;
+
+#ifdef FNLMMA
+      pf_packet.is_FNL = is_FNL; //*@Tarun: is_FNL assigned here.
+#endif
+
+      pf_packet.address = pf_pa >> LOG2_BLOCK_SIZE;
+      pf_packet.full_addr = pf_pa;
+
+      //   cout << hex << "Old address: " << pf_packet.address << endl;
+      //   cout << hex << "Old full address: " << pf_packet.full_addr << endl;
+
+      //   pf_packet.address = (pf_pa >> LOG2_BLOCK_SIZE) +
+      //   ADD_PREFETCH_DISTANCE_L1I; pf_packet.full_addr = pf_pa + (
+      //   ADD_PREFETCH_DISTANCE_L1I << 6 );
+
+      //   cout << hex << "New address: " << pf_packet.address << endl;`
+      //   cout << hex << "New full address: " << pf_packet.full_addr << endl;
+      //   cout << dec;
+
+      pf_packet.ip = pf_v_addr;
+      pf_packet.type = PREFETCH;
+      pf_packet.instr_id = 0;
+      pf_packet.event_cycle = current_core_cycle[cpu];
+
+      L1I.add_pq(&pf_packet);
+      L1I.pf_issued++;
+
+      DPT(if (warmup_complete[cpu]) {
+        cout << "[L1I_PREFETCH] " << __func__ << " issuing prefetch;";
+        cout << " pf_v_addr: " << hex << pf_v_addr << dec;
+        cout << " pf_pa: " << hex << pf_pa << dec;
+        cout << " full_pa_addr: " << hex << pf_packet.full_addr << dec;
+        cout << " speculative_bit: " << uint32_t(pf_packet.is_speculative);
+        cout << " event_cycle: " << pf_packet.event_cycle;
+        cout << endl;
+      });
+
+      return 1;
+    }
+#ifdef SPEC_COMMIT_L1I
+  }
+#endif
 
   return 0;
 }
@@ -859,7 +1137,11 @@ void O3_CPU::schedule_instruction() {
     for (uint32_t i = ROB.head; i < ROB.SIZE; i++) {
       if ((ROB.entry[i].fetched != COMPLETED) ||
           (ROB.entry[i].event_cycle > current_core_cycle[cpu]) ||
-          (num_searched >= SCHEDULER_SIZE))
+          (num_searched >=
+           SCHEDULER_SIZE)) // Doubt(sumon): why is the first condition
+                            // necessary? A instruction is only added in the ROB
+                            // once it is decoded, and an instruction is only
+                            // decode if it translated as well as fetched.
         return;
 
       if (ROB.entry[i].scheduled == 0)
@@ -925,7 +1207,7 @@ void O3_CPU::do_scheduling(uint32_t rob_index) {
 
 void O3_CPU::reg_dependency(uint32_t rob_index) {
   // print out source/destination registers
-  DP(if (warmup_complete[cpu]) {
+  DPT(if (warmup_complete[cpu]) {
     for (uint32_t i = 0; i < NUM_INSTR_SOURCES; i++) {
       if (ROB.entry[rob_index].source_registers[i]) {
         cout << "[ROB] " << __func__
@@ -993,6 +1275,10 @@ void O3_CPU::reg_RAW_dependency(uint32_t prior, uint32_t current,
 
       // we need to mark this dependency in the ROB since the producer might not
       // be added in the store queue yet
+      // Sumon: check this later, when you are clear with the store queue
+      // concept Sumon: what if prior instructions destination is ready? -> this
+      // function is oly called if prior instruction's execution is not yet
+      // complete
       ROB.entry[prior].registers_instrs_depend_on_me.insert(
           current); // this load cannot be executed until the prior store gets
                     // executed
@@ -1160,11 +1446,16 @@ void O3_CPU::schedule_memory_instruction() {
 }
 
 void O3_CPU::execute_memory_instruction() {
+  // This function actually sends the load request from LQ to the caches
+  // hierarchy.
   operate_lsq();
+
   operate_cache();
 }
 
 void O3_CPU::do_memory_scheduling(uint32_t rob_index) {
+  // cout << "do_memory_scheduling" << endl;
+
   uint32_t not_available = check_and_add_lsq(rob_index);
   if (not_available == 0) {
     ROB.entry[rob_index].scheduled = COMPLETED;
@@ -1190,11 +1481,14 @@ uint32_t O3_CPU::check_and_add_lsq(uint32_t rob_index) {
 
   // load
   for (uint32_t i = 0; i < NUM_INSTR_SOURCES; i++) {
+
+    // ROB.entry[rob_index].print_instr();
+
     if (ROB.entry[rob_index].source_memory[i]) {
       num_mem_ops++;
-      if (ROB.entry[rob_index].source_added[i])
+      if (ROB.entry[rob_index].source_added[i]) {
         num_added++;
-      else if (LQ.occupancy < LQ.SIZE) {
+      } else if (LQ.occupancy < LQ.SIZE) {
         add_load_queue(rob_index, i);
         num_added++;
       } else {
@@ -1248,7 +1542,9 @@ void O3_CPU::add_load_queue(uint32_t rob_index, uint32_t data_index) {
   // search for an empty slot
   uint32_t lq_index = LQ.SIZE;
   for (uint32_t i = 0; i < LQ.SIZE; i++) {
-    if (LQ.entry[i].virtual_address == 0) {
+    if (LQ.entry[i].virtual_address ==
+        0) { //* virtual address == 0; signifies that the particular LQ entry is
+             // empty.
       lq_index = i;
       break;
     }
@@ -1261,6 +1557,7 @@ void O3_CPU::add_load_queue(uint32_t rob_index, uint32_t data_index) {
     assert(0);
   }
 
+  // cout << "Adding to LQ" << endl;
   // add it to the load queue
   ROB.entry[rob_index].lq_index[data_index] = lq_index;
   LQ.entry[lq_index].instr_id = ROB.entry[rob_index].instr_id;
@@ -1445,7 +1742,7 @@ void O3_CPU::mem_RAW_dependency(uint32_t prior, uint32_t current,
                     // executed
       ROB.entry[prior].is_producer = 1;
       LQ.entry[lq_index].producer_id = ROB.entry[prior].instr_id;
-      LQ.entry[lq_index].translated = INFLIGHT;
+      LQ.entry[lq_index].translated = INFLIGHT; // Sumon: why translated?
 
       DP(if (warmup_complete[cpu]) {
         cout << "[LQ] " << __func__
@@ -1463,6 +1760,7 @@ void O3_CPU::mem_RAW_dependency(uint32_t prior, uint32_t current,
 
 void O3_CPU::add_store_queue(uint32_t rob_index, uint32_t data_index) {
   uint32_t sq_index = SQ.tail;
+
 #ifdef SANITY_CHECK
   if (SQ.entry[sq_index].virtual_address)
     assert(0);
@@ -1472,16 +1770,17 @@ void O3_CPU::add_store_queue(uint32_t rob_index, uint32_t data_index) {
   // search for an empty slot
   uint32_t sq_index = SQ.SIZE;
   for (uint32_t i=0; i<SQ.SIZE; i++) {
-      if (SQ.entry[i].virtual_address == 0) {
-          sq_index = i;
-          break;
-      }
+                                   if (SQ.entry[i].virtual_address == 0) {
+                                                                   sq_index = i;
+                                                                   break;
+                                   }
   }
 
   // sanity check
   if (sq_index == SQ.SIZE) {
-      cerr << "instr_id: " << ROB.entry[rob_index].instr_id << " no empty slot
-  in the store queue!!!" << endl; assert(0);
+                                   cerr << "instr_id: " <<
+  ROB.entry[rob_index].instr_id << " no empty slot in the store queue!!!" <<
+  endl; assert(0);
   }
   */
 
@@ -1533,15 +1832,20 @@ void O3_CPU::operate_lsq() {
       uint32_t sq_index = RTS0[RTS0_head];
       if (SQ.entry[sq_index].event_cycle <= current_core_cycle[cpu]) {
 
-        // add it to DTLB
+        //* add it to DTLB   -> @Tarun: DTLB packet will not be added in L0D,
+        // it'll move to L0(TLB) of MuonTrap.
+        // TODO: LOD_CACHE DOUBT
         PACKET data_packet;
 
+        //* The DTLB packet has to be filled in the L1 level only.
         data_packet.tlb_access = 1;
         data_packet.fill_level = FILL_L1;
         data_packet.fill_l1d = 1;
+
         data_packet.cpu = cpu;
         data_packet.data_index = SQ.entry[sq_index].data_index;
         data_packet.sq_index = sq_index;
+
         if (knob_cloudsuite)
           data_packet.address =
               ((SQ.entry[sq_index].virtual_address >> LOG2_PAGE_SIZE) << 9) |
@@ -1549,6 +1853,7 @@ void O3_CPU::operate_lsq() {
         else
           data_packet.address =
               SQ.entry[sq_index].virtual_address >> LOG2_PAGE_SIZE;
+
         data_packet.full_addr = SQ.entry[sq_index].virtual_address;
         data_packet.instr_id = SQ.entry[sq_index].instr_id;
         data_packet.rob_index = SQ.entry[sq_index].rob_index;
@@ -1566,7 +1871,7 @@ void O3_CPU::operate_lsq() {
           cout << " head: " << RTS0_head << " tail: " << RTS0_tail << endl;
         });
 
-        int rq_index = DTLB.add_rq(&data_packet);
+        int rq_index = DTLB.add_rq(&data_packet); //* Added to DTLB.
 
         if (rq_index == -2)
           break;
@@ -1597,6 +1902,8 @@ void O3_CPU::operate_lsq() {
     if (RTS1[RTS1_head] < SQ_SIZE) {
       uint32_t sq_index = RTS1[RTS1_head];
       if (SQ.entry[sq_index].event_cycle <= current_core_cycle[cpu]) {
+
+        //* @Tarun: No change in fill_level
         execute_store(SQ.entry[sq_index].rob_index, sq_index,
                       SQ.entry[sq_index].data_index);
 
@@ -1619,6 +1926,7 @@ void O3_CPU::operate_lsq() {
       break;
   }
 
+  // handle load
   unsigned load_issued = 0;
   num_iteration = 0;
   while (load_issued < LQ_WIDTH) {
@@ -1627,12 +1935,17 @@ void O3_CPU::operate_lsq() {
       if (LQ.entry[lq_index].event_cycle <= current_core_cycle[cpu]) {
 
         // add it to DTLB
+        // TODO: LOD_CACHE DOUBT
         PACKET data_packet;
+
+        //* The DTLB packet has to be filled in the L1 level only.
         data_packet.fill_level = FILL_L1;
         data_packet.fill_l1d = 1;
+
         data_packet.cpu = cpu;
         data_packet.data_index = LQ.entry[lq_index].data_index;
         data_packet.lq_index = lq_index;
+
         if (knob_cloudsuite)
           data_packet.address =
               ((LQ.entry[lq_index].virtual_address >> LOG2_PAGE_SIZE) << 9) |
@@ -1640,6 +1953,7 @@ void O3_CPU::operate_lsq() {
         else
           data_packet.address =
               LQ.entry[lq_index].virtual_address >> LOG2_PAGE_SIZE;
+
         data_packet.full_addr = LQ.entry[lq_index].virtual_address;
         data_packet.instr_id = LQ.entry[lq_index].instr_id;
         data_packet.rob_index = LQ.entry[lq_index].rob_index;
@@ -1724,6 +2038,7 @@ void O3_CPU::execute_store(uint32_t rob_index, uint32_t sq_index,
     cerr << "instr_id: " << ROB.entry[rob_index].instr_id << endl;
     assert(0);
   }
+
   if (ROB.entry[rob_index].num_mem_ops == 0)
     inflight_mem_executions++;
 
@@ -1809,10 +2124,14 @@ void O3_CPU::execute_store(uint32_t rob_index, uint32_t sq_index,
 
 int O3_CPU::execute_load(uint32_t rob_index, uint32_t lq_index,
                          uint32_t data_index) {
-  // add it to L1D
+  // add to it L0D.             //* L0D_CACHE
   PACKET data_packet;
-  data_packet.fill_level = FILL_L1;
+
+  data_packet.is_speculative = ROB.entry[rob_index].speculative_bit; //* L0_SPEC
+  data_packet.fill_level = FILL_L0;
   data_packet.fill_l1d = 1;
+  data_packet.fill_l0d = 1;
+
   data_packet.cpu = cpu;
   data_packet.data_index = LQ.entry[lq_index].data_index;
   data_packet.lq_index = lq_index;
@@ -1826,7 +2145,7 @@ int O3_CPU::execute_load(uint32_t rob_index, uint32_t lq_index,
   data_packet.asid[1] = LQ.entry[lq_index].asid[1];
   data_packet.event_cycle = LQ.entry[lq_index].event_cycle;
 
-  int rq_index = L1D.add_rq(&data_packet);
+  int rq_index = L0D.add_rq(&data_packet);
 
   if (rq_index == -2)
     return rq_index;
@@ -1945,13 +2264,21 @@ void O3_CPU::reg_RAW_release(uint32_t rob_index) {
 
 void O3_CPU::operate_cache() {
   ITLB.operate();
+
   DTLB.operate();
+
   STLB.operate();
+
+  L0I.operate(); //* L0I_CACHE
+
+  L0D.operate(); //* L0D_CACHE
+
   L1I.operate();
+
   L1D.operate();
+
   L2C.operate();
 
-  // also handle per-cycle prefetcher operation
   l1i_prefetcher_cycle_operate();
 }
 
@@ -1961,20 +2288,23 @@ void O3_CPU::update_rob() {
        current_core_cycle[cpu]))
     complete_instr_fetch(&ITLB.PROCESSED, 1);
 
-  if (L1I.PROCESSED.occupancy &&
-      (L1I.PROCESSED.entry[L1I.PROCESSED.head].event_cycle <=
+  //* L0I_CACHE
+  if (L0I.PROCESSED.occupancy &&
+      (L0I.PROCESSED.entry[L0I.PROCESSED.head].event_cycle <=
        current_core_cycle[cpu]))
-    complete_instr_fetch(&L1I.PROCESSED, 0);
+    complete_instr_fetch(&L0I.PROCESSED, 0);
 
   if (DTLB.PROCESSED.occupancy &&
       (DTLB.PROCESSED.entry[DTLB.PROCESSED.head].event_cycle <=
        current_core_cycle[cpu]))
     complete_data_fetch(&DTLB.PROCESSED, 1);
 
-  if (L1D.PROCESSED.occupancy &&
-      (L1D.PROCESSED.entry[L1D.PROCESSED.head].event_cycle <=
-       current_core_cycle[cpu]))
-    complete_data_fetch(&L1D.PROCESSED, 0);
+  //* L0D_CACHE
+  if (L0D.PROCESSED.occupancy &&
+      (L0D.PROCESSED.entry[L0D.PROCESSED.head].event_cycle <=
+       current_core_cycle[cpu])) {
+    complete_data_fetch(&L0D.PROCESSED, 0);
+  }
 
   // update ROB entries with completed executions
   if ((inflight_reg_executions > 0) || (inflight_mem_executions > 0)) {
@@ -2010,7 +2340,7 @@ void O3_CPU::complete_instr_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
         // we did not fetch this instruction's cache line, but we did translated
         // it
         IFETCH_BUFFER.entry[j].fetched = 0;
-        // recalculate a physical address for this cache line based on the
+        // recalculate physical address for this cache line based on the
         // translated physical page address
         uint64_t instr_pa =
             (queue->entry[index].instruction_pa << LOG2_PAGE_SIZE) |
@@ -2021,8 +2351,10 @@ void O3_CPU::complete_instr_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
 
     // remove this entry
     queue->remove_queue(&queue->entry[index]);
-  } else {
-    // this is the L1I cache, so instructions are now fully fetched, so mark
+  }
+
+  else {
+    //* this is the L0I cache, so instructions are now fully fetched, so mark
     // them as such
     for (uint32_t j = 0; j < IFETCH_BUFFER.SIZE; j++) {
       if (((IFETCH_BUFFER.entry[j].ip) >> 6) == ((complete_ip) >> 6)) {
@@ -2036,6 +2368,8 @@ void O3_CPU::complete_instr_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
   }
 
   return;
+
+  //* @Tarun: Execution never goes beyond this because of the return.
 
   // old function below
 
@@ -2053,10 +2387,11 @@ void O3_CPU::complete_instr_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
          ((1 << LOG2_PAGE_SIZE) - 1)); // translated address
   } else
     ROB.entry[rob_index].fetched = COMPLETED;
+
   ROB.entry[rob_index].event_cycle = current_core_cycle[cpu];
   num_fetched++;
 
-  DP(if (warmup_complete[cpu]) {
+  DPT(if (warmup_complete[cpu]) {
     cout << "[" << queue->NAME << "] " << __func__ << " cpu: " << cpu
          << " instr_id: " << ROB.entry[rob_index].instr_id;
     cout << " ip: " << hex << ROB.entry[rob_index].ip
@@ -2175,7 +2510,9 @@ void O3_CPU::complete_data_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
     }
 
     ROB.entry[rob_index].event_cycle = queue->entry[index].event_cycle;
-  } else { // L1D
+  }
+
+  else { //* L0D_CACHE
 
     if (queue->entry[index].type == RFO)
       handle_merged_load(&queue->entry[index]);
@@ -2201,7 +2538,7 @@ void O3_CPU::complete_data_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
       DP(if (warmup_complete[cpu]) {
         cout << "[ROB] " << __func__
              << " load instr_id: " << LQ.entry[lq_index].instr_id;
-        cout << " L1D_FETCH_DONE fetched: " << +LQ.entry[lq_index].fetched
+        cout << " L0D_FETCH_DONE fetched: " << +LQ.entry[lq_index].fetched
              << hex << " address: "
              << (LQ.entry[lq_index].physical_address >> LOG2_BLOCK_SIZE);
         cout << " full_addr: " << LQ.entry[lq_index].physical_address << dec
@@ -2419,7 +2756,7 @@ void O3_CPU::handle_merged_load(PACKET *provider) {
     DP(if (warmup_complete[cpu]) {
       cout << "[ROB] " << __func__
            << " load instr_id: " << LQ.entry[merged].instr_id;
-      cout << " L1D_FETCH_DONE translation: " << +LQ.entry[merged].translated
+      cout << " L0D_FETCH_DONE translation: " << +LQ.entry[merged].translated
            << hex << " address: "
            << (LQ.entry[merged].physical_address >> LOG2_BLOCK_SIZE);
       cout << " full_addr: " << LQ.entry[merged].physical_address << dec
@@ -2446,14 +2783,237 @@ void O3_CPU::release_load_queue(uint32_t lq_index) {
   LQ.occupancy--;
 }
 
+int O3_CPU::commit_blocks(ooo_model_instr *arch_instr) {
+
+  int committed_bit = 1;
+
+  // Committing the instruction block.
+  // access cache
+  uint64_t block_addr = (arch_instr->instruction_pa) >> LOG2_BLOCK_SIZE;
+  uint32_t set = L0I.get_set(block_addr);
+  int way = L0I.get_way(block_addr, set);
+
+  if (way == L0I.NUM_WAY) {
+
+    // missed in L0I cache
+    PACKET fetch_packet;
+    fetch_packet.is_speculative = 0; //* L0_SPEC
+    fetch_packet.instruction = 1;
+    fetch_packet.is_data = 0;
+    fetch_packet.committed_instruction =
+        1; // this bit helps during the merging of instructions in RQ
+
+    fetch_packet.fill_level = FILL_L1; //* L0I_CACHE
+    fetch_packet.fill_l1i = 1;
+    fetch_packet.fill_l0i = 0;
+    fetch_packet.cpu = cpu;
+    fetch_packet.address =
+        (arch_instr->instruction_pa) >>
+        LOG2_BLOCK_SIZE; // instruction_pa is the complete physical address
+    fetch_packet.instruction_pa = arch_instr->instruction_pa;
+    fetch_packet.full_addr = arch_instr->instruction_pa;
+
+    fetch_packet.instr_id = arch_instr->instr_id;
+    fetch_packet.rob_index = 0;
+    fetch_packet.producer = 0;
+    fetch_packet.ip =
+        arch_instr->ip; // but the instruction is now committed from the ROB ??
+    fetch_packet.type = COMMIT_LOAD;
+    fetch_packet.asid[0] = 0;
+    fetch_packet.asid[1] = 0;
+    fetch_packet.event_cycle = current_core_cycle[cpu];
+
+    int rq_index = L1I.add_rq(&fetch_packet);
+    if (rq_index == -2) {
+      // -2 represents full occupancy of RQ
+      // committed_bit = 0;
+      // assert(0);
+    }
+    DPT(if (warmup_complete[cpu]) {
+      cout << "[COMMIT_READ]:  type: Instruction  "
+           << " instr_id: " << fetch_packet.instr_id << " address: " << hex
+           << fetch_packet.address << dec
+           << " is added to L1I RQ;  current_cycle: " << current_core_cycle[cpu]
+           << endl;
+    })
+  }
+
+  else {
+    // hit in L0I cache
+
+    if (L0I.block[set][way].committed ==
+        0) { // check if L0I block already committed
+
+      L0I.block[set][way].committed =
+          1; // set the committed bit for the L0I block
+
+      PACKET inst_writethrough_packet;
+      inst_writethrough_packet.instruction = 1;
+      inst_writethrough_packet.is_data = 0;
+      inst_writethrough_packet.committed_instruction = 1;
+
+      inst_writethrough_packet.data = L0I.block[set][way].data;
+      inst_writethrough_packet.type = COMMIT_WRITE;
+      inst_writethrough_packet.is_speculative = 0; //* L0_SPEC
+
+      inst_writethrough_packet.fill_level = FILL_L1;
+      inst_writethrough_packet.fill_l1i = 1;
+      inst_writethrough_packet.fill_l0i = 0;
+
+      inst_writethrough_packet.cpu = cpu;
+      inst_writethrough_packet.address =
+          (arch_instr->instruction_pa) >> LOG2_BLOCK_SIZE;
+      inst_writethrough_packet.full_addr = arch_instr->instruction_pa;
+      inst_writethrough_packet.instr_id = arch_instr->instr_id;
+      inst_writethrough_packet.ip = 0; // writeback does not have ip
+      inst_writethrough_packet.event_cycle = current_core_cycle[cpu];
+
+      int wq_index = L1I.add_wq(&inst_writethrough_packet);
+
+      if (wq_index == -2) {
+        // add_wq() will automatically send an assertion if it has full
+        // occupancy. committed_bit = 0; assert(0);
+      }
+      DPT(if (warmup_complete[cpu]) {
+        cout << "[COMMIT_WRITE]:  Type: Instruction  "
+             << " instr_id: " << inst_writethrough_packet.instr_id
+             << " address: " << hex << inst_writethrough_packet.address << dec
+             << " is added to L1I WQ; current_cycle: "
+             << current_core_cycle[cpu] << endl;
+      })
+    }
+  }
+
+  // NOTE: There will be cases when only some of the blocks will be added to
+  // RQ/WQ because of less occupancy.
+
+  // Committing the data blocks
+  // check if this instruction was a memory instruction
+  if (arch_instr->is_memory) {
+
+    for (uint32_t i = 0; i < NUM_INSTR_SOURCES;
+         i++) { // iterate for all load memory addresses
+
+      if (arch_instr
+              ->source_memory[i]) { // if there exists a source memory address
+
+        uint64_t pa = 0;
+        // is_code parameter given as 2 so that latencies won't be added
+        pa = va_to_pa(cpu, arch_instr->instr_id, arch_instr->source_memory[i],
+                      arch_instr->source_memory[i] >> LOG2_PAGE_SIZE, 2);
+        pa = pa >> LOG2_PAGE_SIZE;
+        pa = pa << LOG2_PAGE_SIZE;
+        uint64_t physical_address =
+            pa | (arch_instr->source_memory[i] & ((1 << LOG2_PAGE_SIZE) - 1));
+
+        uint64_t block_addr = physical_address >>
+                              LOG2_BLOCK_SIZE; // convert source memory virtual
+                                               // address to physical address
+        uint32_t set = L0D.get_set(block_addr);
+        int way = L0D.get_way(block_addr, set);
+
+        if (way == L0D.NUM_WAY) {
+          // cache miss
+          PACKET data_packet;
+
+          data_packet.is_speculative = 0;
+          data_packet.fill_level = FILL_L1;
+          data_packet.fill_l1d = 1;
+          data_packet.fill_l0d = 0;
+
+          data_packet.is_data = 1;
+          data_packet.instruction = 0;
+
+          data_packet.address = physical_address >> LOG2_BLOCK_SIZE;
+          data_packet.full_addr = physical_address;
+
+          data_packet.instr_id = arch_instr->instr_id;
+          data_packet.cpu = cpu;
+          data_packet.ip =
+              arch_instr->ip; // but the inst is now removed from the ROB??
+          data_packet.type = COMMIT_LOAD;
+          data_packet.asid[0] = 0;
+          data_packet.asid[1] = 0;
+          data_packet.event_cycle = current_core_cycle[cpu];
+
+          int rq_index = L1D.add_rq(&data_packet);
+
+          if (rq_index == -2) {
+            // committed_bit = 0;
+            // assert(0);
+          }
+          DPT(if (warmup_complete[cpu]) {
+            cout << "[COMMIT_READ]:  Type: data "
+                 << " instr_id: " << data_packet.instr_id << " address: " << hex
+                 << data_packet.address << dec
+                 << " is added to L1D RQ;  current_cycle: "
+                 << current_core_cycle[cpu] << endl;
+          })
+        } else {
+          // cache hit
+          if (L0D.block[set][way].committed == 0) {
+
+            // commit the block in L0D
+            L0D.block[set][way].committed = 1;
+
+            PACKET writethrough_packet;
+
+            writethrough_packet.is_speculative = 0;
+            writethrough_packet.is_data = 1;
+            writethrough_packet.instruction = 0;
+
+            writethrough_packet.fill_level = FILL_L1;
+            writethrough_packet.fill_l1d = 1;
+            writethrough_packet.fill_l0d = 0;
+
+            writethrough_packet.data = L0D.block[set][way].data;
+            writethrough_packet.type = COMMIT_WRITE;
+
+            writethrough_packet.cpu = cpu;
+            writethrough_packet.address = physical_address >> LOG2_BLOCK_SIZE;
+            writethrough_packet.full_addr = physical_address;
+            writethrough_packet.instr_id =
+                arch_instr->instr_id;   // Should be 0??
+            writethrough_packet.ip = 0; // writeback does not have ip
+            writethrough_packet.event_cycle = current_core_cycle[cpu];
+
+            int wq_index =
+                L1D.add_wq(&writethrough_packet); // add_wq has assertion for WQ
+                                                  // full occupancy.
+
+            if (wq_index == -2) {
+              // WQ automatically sends an assertion if full
+              // committed_bit = 0;
+              // assert(0);
+            }
+            DPT(if (warmup_complete[cpu]) {
+              cout << "[COMMIT_WRITE]:  Type: data "
+                   << " instr_id: " << writethrough_packet.instr_id
+                   << " address: " << hex << writethrough_packet.address << dec
+                   << " is added to L1D WQ; current_cycle: "
+                   << current_core_cycle[cpu] << endl;
+            })
+          }
+        }
+      }
+    }
+
+    // destination_memory[] -> represents the virtual address for the store
+    // instruction SQ of core already handles the write of these blocks.
+  }
+
+  return committed_bit;
+}
+
 void O3_CPU::retire_rob() {
+
   for (uint32_t n = 0; n < RETIRE_WIDTH; n++) {
     if (ROB.entry[ROB.head].ip == 0)
       return;
 
     // retire is in-order
     if (ROB.entry[ROB.head].executed != COMPLETED) {
-      DP(if (warmup_complete[cpu]) {
+      DPT(if (warmup_complete[cpu]) {
         cout << "[ROB] " << __func__
              << " instr_id: " << ROB.entry[ROB.head].instr_id
              << " head: " << ROB.head << " is not executed yet" << endl;
@@ -2469,7 +3029,9 @@ void O3_CPU::retire_rob() {
     }
 
     if (num_store) {
-      if ((L1D.WQ.occupancy + num_store) <= L1D.WQ.SIZE) {
+      //* @Tarun: L0D_CACHE Implementation Change
+
+      if ((L0D.WQ.occupancy + num_store) <= L0D.WQ.SIZE) {
         for (uint32_t i = 0; i < MAX_INSTR_DESTINATIONS; i++) {
           if (ROB.entry[ROB.head].destination_memory[i]) {
 
@@ -2478,34 +3040,42 @@ void O3_CPU::retire_rob() {
 
             // sq_index and rob_index are no longer available after retirement
             // but we pass this information to avoid segmentation fault
-            data_packet.fill_level = FILL_L1;
+
+            data_packet.is_speculative = 0; //* L0_SPEC
+
+            // This has to be FILL_L0 because the
+            data_packet.fill_level = FILL_L0; //* L0D_CACHE
             data_packet.fill_l1d = 1;
+            data_packet.fill_l0d = 1;
+
             data_packet.cpu = cpu;
             data_packet.data_index = SQ.entry[sq_index].data_index;
             data_packet.sq_index = sq_index;
+            data_packet.rob_index = SQ.entry[sq_index].rob_index;
             data_packet.address =
                 SQ.entry[sq_index].physical_address >> LOG2_BLOCK_SIZE;
             data_packet.full_addr = SQ.entry[sq_index].physical_address;
             data_packet.instr_id = SQ.entry[sq_index].instr_id;
-            data_packet.rob_index = SQ.entry[sq_index].rob_index;
             data_packet.ip = SQ.entry[sq_index].ip;
-            data_packet.type = RFO;
+            data_packet.type = RFO; // This will remain as RFO because the store
+                                    // requests are moving into the L0D. The L0I
+                                    // write requests will never be RFO.
             data_packet.asid[0] = SQ.entry[sq_index].asid[0];
             data_packet.asid[1] = SQ.entry[sq_index].asid[1];
             data_packet.event_cycle = current_core_cycle[cpu];
 
-            L1D.add_wq(&data_packet);
+            L0D.add_wq(&data_packet);
           }
         }
       } else {
-        DP(if (warmup_complete[cpu]) {
+        DPT(if (warmup_complete[cpu]) {
           cout << "[ROB] " << __func__
                << " instr_id: " << ROB.entry[ROB.head].instr_id
-               << " L1D WQ is full" << endl;
+               << " L0D WQ is full" << endl;
         });
 
-        L1D.WQ.FULL++;
-        L1D.STALL[RFO]++;
+        L0D.WQ.FULL++;
+        L0D.STALL[RFO]++;
 
         return;
       }
@@ -2536,14 +3106,121 @@ void O3_CPU::retire_rob() {
       }
     }
 
+    // MuonTrap L0 block committing mechanism
+    int committed_bit = 1;
+    if (ROB.entry[ROB.head].speculative_bit == 1) {
+      // Commit the related blocks to this instruction.
+      // return 0 represents stall the current instruction retirement.
+
+      committed_bit = commit_blocks(&ROB.entry[ROB.head]);
+
+      if (committed_bit == 0) {
+        // assertions have been placed if L1 RQ, WQ gets full
+
+        // do not remove this ROB entry, since it has not completed the
+        // writethrough for all the blocks. return;
+      }
+    }
+
     // release ROB entry
-    DP(if (warmup_complete[cpu]) {
+    DPT(if (warmup_complete[cpu]) {
       cout << "[ROB] " << __func__
-           << " instr_id: " << ROB.entry[ROB.head].instr_id << " is retired"
-           << endl;
+           << " instr_id: " << ROB.entry[ROB.head].instr_id
+           << " ip: " << ROB.entry[ROB.head].ip
+           << " is retired; current: " << current_core_cycle[cpu] << endl;
     });
 
+// L1D
+#if defined(PREFETCH_ON_COMMIT_L1D) || defined(SPEC_COMMIT_L1D) ||             \
+    defined(GHOST_PREFETCHING)
+
+    if (prefetcher_map_L1D.count(ROB.entry[ROB.head].instr_id) == 1) {
+
+      PREFETCHER_REQUEST_PARAMS params =
+          prefetcher_map_L1D[ROB.entry[ROB.head].instr_id];
+
+#ifdef PREFETCH_ON_COMMIT_L1D
+      L1D.l1d_prefetcher_operate(params.addr, params.ip, params.cache_hit,
+                                 params.type);
+#endif
+#ifdef SPEC_COMMIT_L1D
+      L1D.l1d_prefetcher_operate(params.addr, params.ip, params.cache_hit,
+                                 params.type, 0);
+#endif
+#ifdef GHOST_PREFETCHING
+      // speculative_bit = 2, indicates no prefetching during commit time only
+      // table updates
+      L1D.l1d_prefetcher_operate(params.addr, params.ip, params.cache_hit,
+                                 params.type, 2);
+#endif
+
+      prefetcher_map_L1D.erase(ROB.entry[ROB.head].instr_id);
+
+      l1d_map_size--;
+    }
+
+#endif
+
+// L2C
+#if defined(PREFETCH_ON_COMMIT_L2C) || defined(SPEC_COMMIT_L2C)
+
+    if (prefetcher_map_L2C.count(ROB.entry[ROB.head].instr_id) == 1) {
+
+      L2C_PREFETCHER_REQUEST_PARAMS params =
+          prefetcher_map_L2C[ROB.entry[ROB.head].instr_id];
+
+#ifdef SPEC_COMMIT_L2C
+      if (params.from_handle_prefetch == 1) {
+        L2C.PQ.entry[params.PQ_index].pf_metadata =
+            L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
+                                       params.type, params.metadata_in, 0);
+      } else {
+        L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
+                                   params.type, params.metadata_in, 0);
+      }
+#endif
+
+#ifdef PREFETCH_ON_COMMIT_L2C
+      if (params.from_handle_prefetch == 1)
+        L2C.PQ.entry[params.PQ_index].pf_metadata =
+            L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
+                                       params.type, params.metadata_in);
+      else
+        L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
+                                   params.type, params.metadata_in);
+#endif
+
+      prefetcher_map_L2C.erase(ROB.entry[ROB.head].instr_id);
+    }
+
+#endif
+
+// L1I
+#if defined(PREFETCH_ON_COMMIT_L1I) || defined(SPEC_COMMIT_L1I)
+
+    if (prefetcher_map_L1I.count(ROB.entry[ROB.head].instr_id) == 1) {
+
+      L1I_PREFETCHER_PARAMS params =
+          prefetcher_map_L1I[ROB.entry[ROB.head].instr_id];
+
+#ifdef SPEC_COMMIT_L1I
+      // given speculative bit as 0.
+      L1I.l1i_prefetcher_cache_operate(params.cpu, params.ip, params.cache_hit,
+                                       params.prefetch_hit, 0);
+#endif
+#ifndef SPEC_COMMIT_L1I
+      L1I.l1i_prefetcher_cache_operate(params.cpu, params.ip, params.cache_hit,
+                                       params.prefetch_hit);
+#endif
+      prefetcher_map_L1I.erase(ROB.entry[ROB.head].instr_id);
+
+      l1i_map_size--;
+    }
+
+#endif
+
     ooo_model_instr empty_entry;
+
     ROB.entry[ROB.head] = empty_entry;
 
     ROB.head++;

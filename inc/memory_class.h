@@ -9,7 +9,10 @@
 #define RFO 1
 #define PREFETCH 2
 #define WRITEBACK 3
-#define NUM_TYPES 4
+#define COMMIT_LOAD 4
+#define COMMIT_WRITE 5
+#define PREFETCH_WRITE 6
+#define NUM_TYPES 7
 
 extern uint32_t tRP, // Row Precharge (RP) latency
     tRCD,            // Row address to Column address (RCD) latency
@@ -22,6 +25,8 @@ public:
   // memory interface
   MEMORY *upper_level_icache[NUM_CPUS], *upper_level_dcache[NUM_CPUS],
       *lower_level, *extra_interface;
+
+  uint64_t wq_has_demand_block;
 
   // empty queues
   PACKET_QUEUE WQ{"EMPTY", 1}, RQ{"EMPTY", 1}, PQ{"EMPTY", 1}, MSHR{"EMPTY", 1};
@@ -48,6 +53,7 @@ public:
       MSHR_MERGED[i] = 0;
       STALL[i] = 0;
     }
+    wq_has_demand_block = 0;
   }
 };
 

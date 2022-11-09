@@ -24,10 +24,15 @@ uint64_t previous_ppage, num_adjacent_page, num_cl[NUM_CPUS], allocated_pages,
     num_page[NUM_CPUS], minor_fault[NUM_CPUS], major_fault[NUM_CPUS];
 
 void record_roi_stats(uint32_t cpu, CACHE *cache) {
+  // cout << cache->NAME << endl;
   for (uint32_t i = 0; i < NUM_TYPES; i++) {
     cache->roi_access[cpu][i] = cache->sim_access[cpu][i];
     cache->roi_hit[cpu][i] = cache->sim_hit[cpu][i];
     cache->roi_miss[cpu][i] = cache->sim_miss[cpu][i];
+
+    // cout << cache->sim_access[cpu][i] << endl;
+    // cout << cache->sim_hit[cpu][i] << endl;
+    // cout << cache->sim_miss[cpu][i] << endl;
   }
 }
 
@@ -66,14 +71,46 @@ void print_roi_stats(uint32_t cpu, CACHE *cache) {
        << "  MISS: " << setw(10) << cache->roi_miss[cpu][3] << endl;
 
   cout << cache->NAME;
+  cout << " LOAD MERGED IN WQ: " << setw(9) << cache->wq_has_demand_block
+       << endl;
+
+  cout << cache->NAME;
+  cout << " C_LOAD    ACCESS: " << setw(10) << cache->roi_access[cpu][4]
+       << "  HIT: " << setw(10) << cache->roi_hit[cpu][4]
+       << "  MISS: " << setw(10) << cache->roi_miss[cpu][4] << endl;
+
+  cout << cache->NAME;
+  cout << " C_WRITE   ACCESS: " << setw(10) << cache->roi_access[cpu][5]
+       << "  HIT: " << setw(10) << cache->roi_hit[cpu][5]
+       << "  MISS: " << setw(10) << cache->roi_miss[cpu][5] << endl;
+
+  cout << cache->NAME;
+  cout << " PREF_WRT  ACCESS: " << setw(10) << cache->roi_access[cpu][6]
+       << "  HIT: " << setw(10) << cache->roi_hit[cpu][6]
+       << "  MISS: " << setw(10) << cache->roi_miss[cpu][6] << endl;
+
+  //* @Tarun: These values have been zeroed after warmup.
+  cout << cache->NAME;
   cout << " PREFETCH  REQUESTED: " << setw(10) << cache->pf_requested
        << "  ISSUED: " << setw(10) << cache->pf_issued;
   cout << "  USEFUL: " << setw(10) << cache->pf_useful
-       << "  USELESS: " << setw(10) << cache->pf_useless << endl;
+       << "  USELESS: " << setw(10) << cache->pf_useless
+       << "  MERGED: " << setw(10) << cache->PQ.MERGED << endl;
+
+  cout << cache->NAME;
+  cout << " LATENESS COUNT: " << setw(10) << cache->lateness_counter
+       << " USEFUL 2: " << cache->pf_useful_2 << endl;
+
+#ifdef NS_INST_PRIORITY
+  cout << cache->NAME;
+  cout << " MSHR BUFFER FULL: " << setw(10) << cache->mshr_spec_buffer_full
+       << endl;
+#endif
 
   cout << cache->NAME;
   cout << " AVERAGE MISS LATENCY: "
-       << (1.0 * (cache->total_miss_latency)) / TOTAL_MISS << " cycles" << endl;
+       << (1.0 * (cache->total_miss_latency)) / TOTAL_MISS << " cycles" << endl
+       << endl;
   // cout << " AVERAGE MISS LATENCY: " << (cache->total_miss_latency)/TOTAL_MISS
   // << " cycles " << cache->total_miss_latency << "/" << TOTAL_MISS<< endl;
 }
@@ -211,12 +248,6 @@ void reset_cache_stats(uint32_t cpu, CACHE *cache) {
 
   cache->total_miss_latency = 0;
 
-  cache->pf_requested = 0;
-  cache->pf_issued = 0;
-  cache->pf_useful = 0;
-  cache->pf_useless = 0;
-  cache->pf_fill = 0;
-
   cache->RQ.ACCESS = 0;
   cache->RQ.MERGED = 0;
   cache->RQ.TO_CACHE = 0;
@@ -226,6 +257,83 @@ void reset_cache_stats(uint32_t cpu, CACHE *cache) {
   cache->WQ.TO_CACHE = 0;
   cache->WQ.FORWARD = 0;
   cache->WQ.FULL = 0;
+
+  cache->pf_requested = 0;
+  cache->pf_issued = 0;
+  cache->pf_useful = 0;
+  cache->pf_useless = 0;
+  cache->PQ.MERGED = 0;
+
+  cache->lateness_counter = 0;
+  cache->pf_useful_2 = 0;
+
+  cache->wq_has_demand_block = 0;
+
+#ifdef NS_INST_PRIORITY
+  cache->mshr_spec_buffer_full = 0;
+#endif
+
+#ifdef FNLMMA
+  cache->l1i_prefetcher_warmup_reset();
+#endif
+
+  o3_count = 0;
+  other_count = 0;
+  handle_prefetch_l1d_call_count = 0;
+  handle_prefetch_l2c_call_count = 0;
+
+  prefetch_hits_l1d = 0;
+  demand_misses = 0;
+  l2c_handle_read = 0;
+
+#ifdef IPCP_PREFETCHER_NEW
+  access_count = 0; //* For IPCP
+  l1d_wq_full = 0;
+
+#ifdef NUM_OFFSETS
+  for (int i = 0; i < NUM_OFFSETS; i++) {
+    IPCP_OFFSET_USEFUL_COUNT[i] = 0;
+    IPCP_OFFSET_USELESS_COUNT[i] = 0;
+    IPCP_OFFSET_ISSUED_COUNT[i] = 0;
+  }
+#endif
+
+  for (int i = 0; i < 6; i++) {
+    cache->pref_useful[NUM_CPUS][i], cache->pref_filled[NUM_CPUS][i],
+        cache->pref_late[NUM_CPUS][i];
+  }
+#endif
+  // same_block_addr_count = 0;
+  // same_index_same_block = 0;
+
+  //* L2C
+  prefetch_hits_l2c = 0;
+  prefetch_hits_l2c_RQ = 0;
+
+#ifdef SPEC_COMMIT_DYNAMISM
+  // Dynamism
+  l0d_accesses = 0;
+  interval_l1d_misses = 0;
+  useful_l1d = 0;
+  useful_both = 0;
+
+  // IPCP degree average
+  total_prefetches = 0;
+  times_prefetched = 0;
+#endif
+
+  //*FNL+MMA
+  non_spec_fnlmma_call = 0;
+  spec_fnlmma_call = 0;
+
+  //* MSHR FULL
+  mshr_full_l0i = 0;
+  mshr_full_l0d = 0;
+  mshr_full_l1i = 0;
+  mshr_full_l1d = 0;
+  mshr_full_l2c = 0;
+  mshr_full_llc = 0;
+  prefetched_block_hit_mshr_buffer = 0;
 }
 
 void finish_warmup() {
@@ -266,6 +374,8 @@ void finish_warmup() {
       ooo_cpu[i].total_branch_types[j] = 0;
     }
 
+    reset_cache_stats(i, &ooo_cpu[i].L0I);
+    reset_cache_stats(i, &ooo_cpu[i].L0D);
     reset_cache_stats(i, &ooo_cpu[i].L1I);
     reset_cache_stats(i, &ooo_cpu[i].L1D);
     reset_cache_stats(i, &ooo_cpu[i].L2C);
@@ -286,6 +396,8 @@ void finish_warmup() {
     ooo_cpu[i].ITLB.LATENCY = ITLB_LATENCY;
     ooo_cpu[i].DTLB.LATENCY = DTLB_LATENCY;
     ooo_cpu[i].STLB.LATENCY = STLB_LATENCY;
+    ooo_cpu[i].L0I.LATENCY = L0I_LATENCY;
+    ooo_cpu[i].L0D.LATENCY = L0D_LATENCY;
     ooo_cpu[i].L1I.LATENCY = L1I_LATENCY;
     ooo_cpu[i].L1D.LATENCY = L1D_LATENCY;
     ooo_cpu[i].L2C.LATENCY = L2C_LATENCY;
@@ -327,9 +439,366 @@ void print_deadlock(uint32_t i) {
          << " fetched: " << +ooo_cpu[i].SQ.entry[i].fetched << endl;
   }
 
-  // print L1D MSHR entry
   PACKET_QUEUE *queue;
+
+  CORE_BUFFER buffer = ooo_cpu[i].IFETCH_BUFFER;
+  cout << endl << buffer.NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < buffer.SIZE; j++) {
+    cout << "[" << buffer.NAME << "] entry: " << j
+         << " instr_id: " << buffer.entry[j].instr_id
+         << " is_memory: " << uint32_t(buffer.entry[j].is_memory) << endl;
+  }
+
+  queue = &ooo_cpu[i].L0I.RQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L0I.WQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+#ifdef NS_INST_PRIORITY
+  queue = &ooo_cpu[i].L0I.MSHR_SPEC_BUFFER;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+#endif
+  // print L0I MSHR entry
+  queue = &ooo_cpu[i].L0I.MSHR;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L0D.RQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L0D.WQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+#ifdef NS_INST_PRIORITY
+  queue = &ooo_cpu[i].L0D.MSHR_SPEC_BUFFER;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+#endif
+
+  // print L0D MSHR entry
+  queue = &ooo_cpu[i].L0D.MSHR;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L1I.RQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L1I.WQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+#ifdef NS_INST_PRIORITY
+  queue = &ooo_cpu[i].L1I.MSHR_SPEC_BUFFER;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+#endif
+
+  // print L1I MSHR entry
+  queue = &ooo_cpu[i].L1I.MSHR;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L1D.RQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L1D.WQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+#ifdef NS_INST_PRIORITY
+  queue = &ooo_cpu[i].L1D.MSHR_SPEC_BUFFER;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+#endif
+
+  // print L1D MSHR entry
   queue = &ooo_cpu[i].L1D.MSHR;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L2C.RQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &ooo_cpu[i].L2C.WQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+#ifdef NS_INST_PRIORITY
+  queue = &ooo_cpu[i].L2C.MSHR_SPEC_BUFFER;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+#endif
+
+  queue = &ooo_cpu[i].L2C.MSHR;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &uncore.LLC.RQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &uncore.LLC.PQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &uncore.LLC.WQ;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = &uncore.LLC.MSHR;
+  cout << endl << queue->NAME << " Entry" << endl;
+  for (uint32_t j = 0; j < queue->SIZE; j++) {
+    cout << "[" << queue->NAME << "] entry: " << j
+         << " instr_id: " << queue->entry[j].instr_id
+         << " rob_index: " << queue->entry[j].rob_index;
+    cout << " address: " << hex << queue->entry[j].address
+         << " full_addr: " << queue->entry[j].full_addr << dec
+         << " type: " << +queue->entry[j].type;
+    cout << " fill_level: " << queue->entry[j].fill_level
+         << " lq_index: " << queue->entry[j].lq_index
+         << " sq_index: " << queue->entry[j].sq_index << endl;
+  }
+
+  queue = uncore.DRAM.RQ;
   cout << endl << queue->NAME << " Entry" << endl;
   for (uint32_t j = 0; j < queue->SIZE; j++) {
     cout << "[" << queue->NAME << "] entry: " << j
@@ -380,6 +849,9 @@ uint64_t rotr64(uint64_t n, unsigned int c) {
 }
 
 RANDOM champsim_rand(champsim_seed);
+
+// va -> full virtual address
+// unique_vpage -> va >> LOG2_PAGE_SIZE
 uint64_t va_to_pa(uint32_t cpu, uint64_t instr_id, uint64_t va,
                   uint64_t unique_vpage, uint8_t is_code) {
 #ifdef SANITY_CHECK
@@ -474,6 +946,8 @@ uint64_t va_to_pa(uint32_t cpu, uint64_t instr_id, uint64_t va,
       ooo_cpu[cpu].STLB.invalidate_entry(NRU_vpage);
       for (uint32_t i = 0; i < BLOCK_SIZE; i++) {
         uint64_t cl_addr = (mapped_ppage << 6) | i;
+        ooo_cpu[cpu].L0I.invalidate_entry(cl_addr);
+        ooo_cpu[cpu].L0D.invalidate_entry(cl_addr);
         ooo_cpu[cpu].L1I.invalidate_entry(cl_addr);
         ooo_cpu[cpu].L1D.invalidate_entry(cl_addr);
         ooo_cpu[cpu].L2C.invalidate_entry(cl_addr);
@@ -494,9 +968,8 @@ uint64_t va_to_pa(uint32_t cpu, uint64_t instr_id, uint64_t va,
       // encoding cpu number
       // this allows ChampSim to run homogeneous multi-programmed workloads
       // without VA => PA aliasing (e.g., cpu0: astar  cpu1: astar  cpu2: astar
-      // cpu3: astar...)
-      // random_ppage &= (~((NUM_CPUS-1)<< (32-LOG2_PAGE_SIZE)));
-      // random_ppage |= (cpu<<(32-LOG2_PAGE_SIZE));
+      // cpu3: astar...) random_ppage &= (~((NUM_CPUS-1)<<
+      // (32-LOG2_PAGE_SIZE))); random_ppage |= (cpu<<(32-LOG2_PAGE_SIZE));
 
       while (1) { // try to find an empty physical page number
         ppage_check = inverse_table.find(
@@ -583,11 +1056,23 @@ uint64_t va_to_pa(uint32_t cpu, uint64_t instr_id, uint64_t va,
   return pa;
 }
 
+#ifdef SPEC_COMMIT_L1I
+void cpu_l1i_prefetcher_cache_operate(uint32_t cpu_num, uint64_t v_addr,
+                                      uint8_t cache_hit, uint8_t prefetch_hit,
+                                      uint8_t speculative_bit) {
+  // cout << "FLAG 2" << endl;
+  ooo_cpu[cpu_num].l1i_prefetcher_cache_operate(v_addr, cache_hit, prefetch_hit,
+                                                speculative_bit);
+}
+#endif
+
+#ifndef SPEC_COMMIT_L1I
 void cpu_l1i_prefetcher_cache_operate(uint32_t cpu_num, uint64_t v_addr,
                                       uint8_t cache_hit, uint8_t prefetch_hit) {
   ooo_cpu[cpu_num].l1i_prefetcher_cache_operate(v_addr, cache_hit,
                                                 prefetch_hit);
 }
+#endif
 
 void cpu_l1i_prefetcher_cache_fill(uint32_t cpu_num, uint64_t addr,
                                    uint32_t set, uint32_t way, uint8_t prefetch,
@@ -789,6 +1274,10 @@ int main(int argc, char **argv) {
   // TODO: can we initialize these variables from the class constructor?
   srand(seed_number);
   champsim_seed = seed_number;
+  cout << "\n\nCHAMPSIM SEED NUMBER: " << champsim_seed << endl;
+
+  //* Caches and prefetchers have been initialized here. Fill cache for L1I was
+  // executed.
   for (int i = 0; i < NUM_CPUS; i++) {
 
     ooo_cpu[i].cpu = i;
@@ -827,6 +1316,30 @@ int main(int argc, char **argv) {
     ooo_cpu[i].STLB.upper_level_icache[i] = &ooo_cpu[i].ITLB;
     ooo_cpu[i].STLB.upper_level_dcache[i] = &ooo_cpu[i].DTLB;
 
+#ifdef L0I_CACHE
+    ooo_cpu[i].L0I.cpu = i;
+    ooo_cpu[i].L0I.cache_type = IS_L0I;
+    ooo_cpu[i].L0I.MAX_READ = 2;
+    ooo_cpu[i].L0I.fill_level = FILL_L0;
+    ooo_cpu[i].L0I.lower_level = &ooo_cpu[i].L1I;
+
+#ifdef SPEC_COMMIT_L1I
+    // L1I prefetcher is invoked with L0I read requests.
+    ooo_cpu[i].L0I.l1i_prefetcher_cache_operate =
+        cpu_l1i_prefetcher_cache_operate;
+    ooo_cpu[i].L0I.l1i_prefetcher_cache_fill = cpu_l1i_prefetcher_cache_fill;
+#endif
+#endif
+
+#ifdef L0D_CACHE
+    ooo_cpu[i].L0D.cpu = i;
+    ooo_cpu[i].L0D.cache_type = IS_L0D;
+    ooo_cpu[i].L0D.MAX_READ = (2 > MAX_READ_PER_CYCLE) ? MAX_READ_PER_CYCLE : 2;
+    ooo_cpu[i].L0D.fill_level = FILL_L0;
+    ooo_cpu[i].L0D.lower_level = &ooo_cpu[i].L1D;
+    // No Prefetcher at L0D
+#endif
+
     // PRIVATE CACHE
     ooo_cpu[i].L1I.cpu = i;
     ooo_cpu[i].L1I.cache_type = IS_L1I;
@@ -834,6 +1347,11 @@ int main(int argc, char **argv) {
     // MAX_READ_PER_CYCLE : FETCH_WIDTH;
     ooo_cpu[i].L1I.MAX_READ = 2;
     ooo_cpu[i].L1I.fill_level = FILL_L1;
+
+    ooo_cpu[i].L1I.upper_level_icache[i] = &ooo_cpu[i].L0I; //* L0I_CACHE
+    // ooo_cpu[i].L1D.upper_level_dcache[i] = &ooo_cpu[i].L0D;         //*
+    // L0D_CACHE
+
     ooo_cpu[i].L1I.lower_level = &ooo_cpu[i].L2C;
     ooo_cpu[i].l1i_prefetcher_initialize();
     ooo_cpu[i].L1I.l1i_prefetcher_cache_operate =
@@ -844,6 +1362,11 @@ int main(int argc, char **argv) {
     ooo_cpu[i].L1D.cache_type = IS_L1D;
     ooo_cpu[i].L1D.MAX_READ = (2 > MAX_READ_PER_CYCLE) ? MAX_READ_PER_CYCLE : 2;
     ooo_cpu[i].L1D.fill_level = FILL_L1;
+
+    // ooo_cpu[i].L1D.upper_level_icache[i] = &ooo_cpu[i].L0I;         //*
+    // L0I_CACHE
+    ooo_cpu[i].L1D.upper_level_dcache[i] = &ooo_cpu[i].L0D; //* L0D_CACHE
+
     ooo_cpu[i].L1D.lower_level = &ooo_cpu[i].L2C;
     ooo_cpu[i].L1D.l1d_prefetcher_initialize();
 
@@ -876,6 +1399,7 @@ int main(int argc, char **argv) {
     // all_warmup_complete = NUM_CPUS;
     simulation_complete[i] = 0;
     current_core_cycle[i] = 0;
+    branch_resolution_timer[i] = 0;
     stall_cycle[i] = 0;
 
     previous_ppage = 0;
@@ -890,7 +1414,9 @@ int main(int argc, char **argv) {
   uncore.LLC.llc_initialize_replacement();
   uncore.LLC.llc_prefetcher_initialize();
 
-  // simulation entry point
+  //*=============================== Simulation entry point
+  //===============================================================
+
   start_time = time(NULL);
   uint8_t run_simulation = 1;
   while (run_simulation) {
@@ -905,10 +1431,6 @@ int main(int argc, char **argv) {
       // proceed one cycle
       current_core_cycle[i]++;
 
-      // cout << "Trying to process instr_id: " << ooo_cpu[i].instr_unique_id <<
-      // " fetch_stall: " << +ooo_cpu[i].fetch_stall; cout << " stall_cycle: "
-      // << stall_cycle[i] << " current: " << current_core_cycle[i] << endl;
-
       // core might be stalled due to page fault or branch misprediction
       if (stall_cycle[i] <= current_core_cycle[i]) {
 
@@ -916,41 +1438,57 @@ int main(int argc, char **argv) {
         if ((ooo_cpu[i].ROB.entry[ooo_cpu[i].ROB.head].executed == COMPLETED) &&
             (ooo_cpu[i].ROB.entry[ooo_cpu[i].ROB.head].event_cycle <=
              current_core_cycle[i]))
-          ooo_cpu[i].retire_rob();
+          ooo_cpu[i].retire_rob(); //* L0D_CACHE and L0I_CACHE done.
+        // cout << "After retire rob" << endl;
 
         // complete
-        ooo_cpu[i].update_rob();
+        ooo_cpu[i].update_rob(); //* Updations in L0I and L0D now.
+
+        // cout << "update rob 1" << endl;
 
         // schedule
         uint32_t schedule_index = ooo_cpu[i].ROB.next_schedule;
         if ((ooo_cpu[i].ROB.entry[schedule_index].scheduled == 0) &&
             (ooo_cpu[i].ROB.entry[schedule_index].event_cycle <=
              current_core_cycle[i]))
-          ooo_cpu[i].schedule_instruction();
+          ooo_cpu[i].schedule_instruction(); //* Updated
+        // cout << "schedule instruction " << endl;
+
         // execute
-        ooo_cpu[i].execute_instruction();
+        ooo_cpu[i].execute_instruction(); //* Updated
+        // cout << "execute instruction" << endl;
 
         ooo_cpu[i].update_rob();
+        // cout << "update rob 2" << endl;
 
         // memory operation
-        ooo_cpu[i].schedule_memory_instruction();
+        ooo_cpu[i].schedule_memory_instruction(); //* Updated
+        // cout << "schedule memory inst" << endl;
+
         ooo_cpu[i].execute_memory_instruction();
+        // cout << "execute mem inst" << endl;
 
         ooo_cpu[i].update_rob();
+        // cout << "update rob" << endl;
 
         // decode
         if (ooo_cpu[i].DECODE_BUFFER.occupancy > 0) {
-          ooo_cpu[i].decode_and_dispatch();
+          ooo_cpu[i]
+              .decode_and_dispatch(); //* No changes for L0D and L0I
+                                      // cout << "decode and dispatch" << endl;
         }
 
         // fetch
-        ooo_cpu[i].fetch_instruction();
+        ooo_cpu[i].fetch_instruction(); //* Instruction fetching in L0I_CACHE
+                                        // implemented.
+        // cout << "fetch inst" << endl;
 
         // read from trace
         if ((ooo_cpu[i].IFETCH_BUFFER.occupancy <
              ooo_cpu[i].IFETCH_BUFFER.SIZE) &&
             (ooo_cpu[i].fetch_stall == 0)) {
           ooo_cpu[i].read_from_trace();
+          // cout << "read from trace" << endl;
         }
       }
 
@@ -1003,11 +1541,11 @@ int main(int argc, char **argv) {
 
       /*
       if (all_warmup_complete == 0) {
-          all_warmup_complete = 1;
-          finish_warmup();
+                      all_warmup_complete = 1;
+                      finish_warmup();
       }
       if (ooo_cpu[1].num_retired > 0)
-          warmup_complete[1] = 1;
+                      warmup_complete[1] = 1;
       */
 
       // simulation complete
@@ -1029,6 +1567,8 @@ int main(int argc, char **argv) {
         cout << " (Simulation time: " << elapsed_hour << " hr "
              << elapsed_minute << " min " << elapsed_second << " sec) " << endl;
 
+        record_roi_stats(i, &ooo_cpu[i].L0D);
+        record_roi_stats(i, &ooo_cpu[i].L0I);
         record_roi_stats(i, &ooo_cpu[i].L1D);
         record_roi_stats(i, &ooo_cpu[i].L1I);
         record_roi_stats(i, &ooo_cpu[i].L2C);
@@ -1052,6 +1592,88 @@ int main(int argc, char **argv) {
   elapsed_minute -= elapsed_hour * 60;
   elapsed_second -= (elapsed_hour * 3600 + elapsed_minute * 60);
 
+  //*================================= End of Simulation
+  //=====================================================================
+
+  cout << endl;
+
+#ifdef MULTICORE_BASELINE
+  cout << "MULTICORE_BASELINE: TRUE" << endl;
+#endif
+
+#ifdef SPEC_COMMIT_L1I
+  cout << "SPEC_COMMIT_L1I: 1" << endl;
+#endif
+#ifndef SPEC_COMMIT_L1I
+  cout << "SPEC_COMMIT_L1I: 0" << endl;
+#endif
+
+#ifdef PREFETCH_ON_COMMIT_L1I
+  cout << "PREFETCH ON COMMIT L1I: 1" << endl;
+#endif
+#ifndef PREFETCH_ON_COMMIT_L1I
+  cout << "PREFETCH ON COMMIT L1I: 0" << endl;
+#endif
+
+#ifdef SPEC_COMMIT_L1D
+  cout << "SPEC_COMMIT_L1D: 1" << endl;
+#endif
+#ifndef SPEC_COMMIT_L1D
+  cout << "SPEC_COMMIT_L1D: 0" << endl;
+#endif
+
+#ifdef PREFETCH_ON_COMMIT_L1D
+  cout << "PREFETCH ON COMMIT L1D: 1" << endl;
+#endif
+#ifndef PREFETCH_ON_COMMIT_L1D
+  cout << "PREFETCH ON COMMIT L1D: 0" << endl;
+#endif
+
+#ifdef SPEC_COMMIT_L2C
+  cout << "SPEC_COMMIT_L2C: 1" << endl;
+#endif
+#ifndef SPEC_COMMIT_L2C
+  cout << "SPEC_COMMIT_L2C: 0" << endl;
+#endif
+
+#ifdef PREFETCH_ON_COMMIT_L2C
+  cout << "PREFETCH ON COMMIT L2C: 1" << endl;
+#endif
+#ifndef PREFETCH_ON_COMMIT_L2C
+  cout << "PREFETCH ON COMMIT L2C: 0" << endl;
+#endif
+  cout << endl;
+#ifdef GHOST_PREFETCHING
+  cout << "GHOST_PREFETCHING: ON" << endl;
+#endif
+#ifndef GHOST_PREFETCHING
+  cout << "GHOST_PREFETCHING: OFF" << endl;
+#endif
+  cout << endl;
+#ifdef NS_INST_PRIORITY
+  cout << "NON-SPECULATIVE PRIORITY: ENABLED" << endl;
+#endif
+
+  cout << endl;
+
+  cout << "L0I: " << L0I_SET * L0I_WAY * 64 / 1024 << " KB" << endl;
+
+#if L0D_SIZE == 1
+  cout << "L0D: " << L0D_SET * L0D_WAY * 64 << " B" << endl;
+#endif
+#if L0D_SIZE >= 2
+  cout << "L0D: " << L0D_SET * L0D_WAY * 64 / 1024 << " KB" << endl;
+#endif
+
+  cout << "L0I Latency: " << L0I_LATENCY << endl;
+  cout << "L0D Latency: " << L0D_LATENCY << endl;
+
+#ifdef SPEC_MAX_CALLS
+  cout << "SPEC_CALLS: " << SPEC_MAX_CALLS << endl;
+#endif
+
+  cout << endl;
+
   cout << endl << "ChampSim completed all CPUs" << endl;
   if (NUM_CPUS > 1) {
     cout << endl
@@ -1066,6 +1688,8 @@ int main(int argc, char **argv) {
            << " cycles: " << current_core_cycle[i] - ooo_cpu[i].begin_sim_cycle
            << endl;
 #ifndef CRC2_COMPILE
+      print_sim_stats(i, &ooo_cpu[i].L0D);
+      print_sim_stats(i, &ooo_cpu[i].L0I);
       print_sim_stats(i, &ooo_cpu[i].L1D);
       print_sim_stats(i, &ooo_cpu[i].L1I);
       print_sim_stats(i, &ooo_cpu[i].L2C);
@@ -1078,6 +1702,13 @@ int main(int argc, char **argv) {
     uncore.LLC.llc_prefetcher_final_stats();
   }
 
+  //*=================================== STATISTICS PRINTING
+  //===================================================================
+  cout << endl << "Note::" << endl;
+  cout << "1) ACCESS HIT MISS are for simulation instructions." << endl;
+  cout << "2) REQ ISS USEF USEL MER are for simulation instructions." << endl;
+  cout << "3) LATENESS USE2 are for simulation instructions." << endl;
+
   cout << endl << "Region of Interest Statistics" << endl;
   for (uint32_t i = 0; i < NUM_CPUS; i++) {
     cout << endl
@@ -1086,6 +1717,8 @@ int main(int argc, char **argv) {
     cout << " instructions: " << ooo_cpu[i].finish_sim_instr
          << " cycles: " << ooo_cpu[i].finish_sim_cycle << endl;
 #ifndef CRC2_COMPILE
+    print_roi_stats(i, &ooo_cpu[i].L0D);
+    print_roi_stats(i, &ooo_cpu[i].L0I);
     print_roi_stats(i, &ooo_cpu[i].L1D);
     print_roi_stats(i, &ooo_cpu[i].L1I);
     print_roi_stats(i, &ooo_cpu[i].L2C);
@@ -1093,6 +1726,31 @@ int main(int argc, char **argv) {
     print_roi_stats(i, &uncore.LLC);
     cout << "Major fault: " << major_fault[i]
          << " Minor fault: " << minor_fault[i] << endl;
+
+    cout << endl;
+    cout << "Total Load insts: " << total_loads << endl;
+    cout << "Total Non-spec loads: " << non_spec_loads << endl;
+
+    cout << endl;
+    cout << "Total Inst fetches: " << inst_total_loads << endl;
+    cout << "Total Non-spec inst fetches: " << inst_non_spec_loads << endl;
+    cout << "Percentage of speculative instructions: "
+         << (float)(inst_total_loads - inst_non_spec_loads) / inst_total_loads
+         << endl;
+
+    cout << endl;
+    cout << "Counts for MSHR Full::" << endl;
+    cout << "L0I: " << mshr_full_l0i << endl;
+    cout << "L0D: " << mshr_full_l0d << endl;
+    cout << "L1I: " << mshr_full_l1i << endl;
+    cout << "L1D: " << mshr_full_l1d << endl;
+    cout << "L2C: " << mshr_full_l2c << endl;
+    cout << "LLC: " << mshr_full_llc << endl;
+
+    cout << "prefetched_block_hit_mshr_buffer: "
+         << prefetched_block_hit_mshr_buffer << endl;
+
+    cout << endl;
   }
 
   for (uint32_t i = 0; i < NUM_CPUS; i++) {

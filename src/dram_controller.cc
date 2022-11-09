@@ -474,7 +474,7 @@ int MEMORY_CONTROLLER::add_rq(PACKET *packet) {
     return -1;
   }
 
-  // check for the latest wirtebacks in the write queue
+  // check for the latest writebacks in the write queue
   uint32_t channel = dram_get_channel(packet->address);
   int wq_index = check_dram_queue(&WQ[channel], packet);
   if (wq_index != -1) {
@@ -513,6 +513,8 @@ int MEMORY_CONTROLLER::add_rq(PACKET *packet) {
     return index; // merged index
 
   // search for the empty index
+  // no check here for (occupancy == size) because it was done before the call
+  // to this function.
   for (index = 0; index < DRAM_RQ_SIZE; index++) {
     if (RQ[channel].entry[index].address == 0) {
 

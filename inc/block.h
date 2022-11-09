@@ -8,9 +8,12 @@
 // CACHE BLOCK
 class BLOCK {
 public:
-  uint8_t valid, prefetch, dirty, used;
+  uint8_t valid, prefetch, dirty, used,
+      committed,   //* L0_SPEC
+      is_FNL,      //* @Tarun: For FNL prefetcher.
+      ipcp_offset; //* @Tarun: For IPCP prefetcher.
 
-  int delta, depth, signature, confidence;
+  int delta, depth, signature, confidence, pref_class;
 
   uint64_t address, full_addr, tag, data, ip, cpu, instr_id;
 
@@ -20,13 +23,16 @@ public:
   BLOCK() {
     valid = 0;
     prefetch = 0;
+    is_FNL = 2; // Initialized as 2.
+    ipcp_offset = 100;
     dirty = 0;
     used = 0;
+    committed = 0;
 
     delta = 0;
     depth = 0;
     signature = 0;
-    confidence = 0;
+    confidence = 0, pref_class = 0;
 
     address = 0;
     full_addr = 0;
@@ -49,12 +55,27 @@ public:
 
 // message packet
 class PACKET {
+
 public:
-  uint8_t instruction, is_data, fill_l1i, fill_l1d, tlb_access, scheduled,
-      translated, fetched, prefetched, drc_tag_read;
+  uint8_t instruction, is_data, is_speculative, committed_instruction,
+      committed_data, prefetch,
+#ifdef L0D_CACHE
+      fill_l0d, fill_l0i,
+#endif
+      fill_l1i, fill_l1d, tlb_access, scheduled, translated, fetched,
+      prefetched, drc_tag_read;
+
+#ifdef FNLMMA
+  uint32_t is_FNL; //* @Tarun: 1 if request sent by FNL else if MMA then 0.
+#endif
+
+#ifdef IPCP_PREFETCHER
+  uint32_t offset_value_ipcp; //* @Tarun: Signifies the offset value that
+                              // created this prefetch request.
+#endif
 
   int fill_level, pf_origin_level, rob_signal, rob_index, producer, delta,
-      depth, signature, confidence;
+      depth, signature, confidence, late_pref;
 
   uint32_t pf_metadata;
 
@@ -74,6 +95,16 @@ public:
   PACKET() {
     instruction = 0;
     is_data = 1;
+    is_speculative = 0;
+    committed_instruction = 0;
+    committed_data = 0;
+    prefetch = 0;
+
+#ifdef L0D_CACHE
+    fill_l0d = 0;
+    fill_l0i = 0;
+#endif
+
     fill_l1i = 0;
     fill_l1d = 0;
     tlb_access = 0;
@@ -81,7 +112,15 @@ public:
     translated = 0;
     fetched = 0;
     prefetched = 0;
-    drc_tag_read = 0;
+    drc_tag_read = 0,
+
+#ifdef FNLMMA
+    is_FNL = 2, //* @Tarun: Initialized as 2 so that none matches.
+#endif
+#ifdef IPCP_PREFETCHER
+        offset_value_ipcp =
+            100; //* @Tarun: Initialized as 100 so that none matches.
+#endif
 
     returned = 0;
     asid[0] = UINT8_MAX;
@@ -95,7 +134,7 @@ public:
     delta = 0;
     depth = 0;
     signature = 0;
-    confidence = 0;
+    confidence = 0, late_pref = 0;
 
 #if 0
         for (uint32_t i=0; i<ROB_SIZE; i++) {
@@ -214,6 +253,7 @@ public:
   const uint32_t SIZE;
   uint32_t cpu, head, tail, occupancy, last_read, last_fetch, last_scheduled,
       inorder_fetch[2], next_fetch[2], next_schedule;
+
   uint64_t event_cycle, fetch_event_cycle, schedule_event_cycle,
       execute_event_cycle, lsq_event_cycle, retire_event_cycle;
 
