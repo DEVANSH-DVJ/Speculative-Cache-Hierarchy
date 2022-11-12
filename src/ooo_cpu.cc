@@ -954,13 +954,7 @@ void O3_CPU::decode_and_dispatch() {
   }
 }
 
-#ifndef SPEC_COMMIT_L1I
 int O3_CPU::prefetch_code_line(uint64_t pf_v_addr)
-#endif
-#ifdef SPEC_COMMIT_L1I
-    int O3_CPU::prefetch_code_line(uint64_t pf_v_addr, uint8_t is_FNL,
-                                   uint8_t speculative_bit)
-#endif
 {
   // TODO: Add a parameter - is_speculative to call this function
   //  If spec == 1 --> Issue the prefetch to L0I
@@ -970,76 +964,6 @@ int O3_CPU::prefetch_code_line(uint64_t pf_v_addr)
     cerr << "Cannot prefetch code line 0x0 !!!" << endl;
     assert(0);
   }
-
-#ifdef SPEC_COMMIT_L1I
-  if (speculative_bit == 1) {
-
-    // prefetch to L0I
-
-    L0I.pf_requested++;
-
-    if (L0I.PQ.occupancy < L0I.PQ.SIZE) {
-      // magically translate prefetches
-      uint64_t pf_pa =
-          (va_to_pa(cpu, 0, pf_v_addr, pf_v_addr >> LOG2_PAGE_SIZE, 1) &
-           (~((1 << LOG2_PAGE_SIZE) - 1))) |
-          (pf_v_addr & ((1 << LOG2_PAGE_SIZE) - 1));
-      // uint64_t pf_pa = pf_v_addr;
-
-      PACKET pf_packet;
-      pf_packet.is_speculative =
-          1; // should be 1 for bypassing the lower levels
-
-      pf_packet.instruction = 1; // this is a code prefetch
-      pf_packet.is_data = 0;
-      pf_packet.fill_level = FILL_L0;
-      pf_packet.fill_l1i = 1;
-      pf_packet.fill_l0i = 1;
-      pf_packet.pf_origin_level = FILL_L0;
-
-#ifdef FNLMMA
-      pf_packet.is_FNL = is_FNL; //*@Tarun: is_FNL assigned here.
-#endif
-
-      pf_packet.address = pf_pa >> LOG2_BLOCK_SIZE;
-      pf_packet.full_addr = pf_pa;
-
-      //   cout << hex << "Old address: " << pf_packet.address << endl;
-      //   cout << hex << "Old full address: " << pf_packet.full_addr << endl;
-
-      //   pf_packet.address = (pf_pa >> LOG2_BLOCK_SIZE) +
-      //   ADD_PREFETCH_DISTANCE_L1I; pf_packet.full_addr = pf_pa + (
-      //   ADD_PREFETCH_DISTANCE_L1I << 6 );
-
-      //   cout << hex << "New address: " << pf_packet.address << endl;
-      //   cout << hex << "New full address: " << pf_packet.full_addr << endl;
-      //   cout << dec;
-
-      pf_packet.ip = pf_v_addr;
-      pf_packet.type = PREFETCH;
-      pf_packet.cpu = cpu;
-      pf_packet.instr_id = 0;
-      pf_packet.event_cycle = current_core_cycle[cpu];
-
-      L0I.add_pq(&pf_packet);
-      L0I.pf_issued++;
-
-      DPT(if (warmup_complete[cpu]) {
-        cout << "[L0I_PREFETCH] " << __func__ << " issuing prefetch;";
-        cout << " pf_v_addr: " << hex << pf_v_addr << dec;
-        cout << " pf_pa: " << hex << pf_pa << dec;
-        cout << " full_pa_addr: " << hex << pf_packet.full_addr << dec;
-        cout << " speculative_bit: " << uint32_t(pf_packet.is_speculative);
-        cout << " event_cycle: " << pf_packet.event_cycle;
-        cout << endl;
-      });
-
-      return 1;
-    }
-  }
-
-  else {
-#endif
     // prefetch to L1I
 
     L1I.pf_requested++;
@@ -1063,10 +987,6 @@ int O3_CPU::prefetch_code_line(uint64_t pf_v_addr)
       pf_packet.pf_origin_level = FILL_L1;
 
       pf_packet.cpu = cpu;
-
-#ifdef FNLMMA
-      pf_packet.is_FNL = is_FNL; //*@Tarun: is_FNL assigned here.
-#endif
 
       pf_packet.address = pf_pa >> LOG2_BLOCK_SIZE;
       pf_packet.full_addr = pf_pa;
@@ -1102,9 +1022,6 @@ int O3_CPU::prefetch_code_line(uint64_t pf_v_addr)
 
       return 1;
     }
-#ifdef SPEC_COMMIT_L1I
-  }
-#endif
 
   return 0;
 }
@@ -3129,95 +3046,6 @@ void O3_CPU::retire_rob() {
            << " ip: " << ROB.entry[ROB.head].ip
            << " is retired; current: " << current_core_cycle[cpu] << endl;
     });
-
-// L1D
-#if defined(PREFETCH_ON_COMMIT_L1D) || defined(SPEC_COMMIT_L1D) ||             \
-    defined(GHOST_PREFETCHING)
-
-    if (prefetcher_map_L1D.count(ROB.entry[ROB.head].instr_id) == 1) {
-
-      PREFETCHER_REQUEST_PARAMS params =
-          prefetcher_map_L1D[ROB.entry[ROB.head].instr_id];
-
-#ifdef PREFETCH_ON_COMMIT_L1D
-      L1D.l1d_prefetcher_operate(params.addr, params.ip, params.cache_hit,
-                                 params.type);
-#endif
-#ifdef SPEC_COMMIT_L1D
-      L1D.l1d_prefetcher_operate(params.addr, params.ip, params.cache_hit,
-                                 params.type, 0);
-#endif
-#ifdef GHOST_PREFETCHING
-      // speculative_bit = 2, indicates no prefetching during commit time only
-      // table updates
-      L1D.l1d_prefetcher_operate(params.addr, params.ip, params.cache_hit,
-                                 params.type, 2);
-#endif
-
-      prefetcher_map_L1D.erase(ROB.entry[ROB.head].instr_id);
-
-      l1d_map_size--;
-    }
-
-#endif
-
-// L2C
-#if defined(PREFETCH_ON_COMMIT_L2C) || defined(SPEC_COMMIT_L2C)
-
-    if (prefetcher_map_L2C.count(ROB.entry[ROB.head].instr_id) == 1) {
-
-      L2C_PREFETCHER_REQUEST_PARAMS params =
-          prefetcher_map_L2C[ROB.entry[ROB.head].instr_id];
-
-#ifdef SPEC_COMMIT_L2C
-      if (params.from_handle_prefetch == 1) {
-        L2C.PQ.entry[params.PQ_index].pf_metadata =
-            L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
-                                       params.type, params.metadata_in, 0);
-      } else {
-        L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
-                                   params.type, params.metadata_in, 0);
-      }
-#endif
-
-#ifdef PREFETCH_ON_COMMIT_L2C
-      if (params.from_handle_prefetch == 1)
-        L2C.PQ.entry[params.PQ_index].pf_metadata =
-            L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
-                                       params.type, params.metadata_in);
-      else
-        L2C.l2c_prefetcher_operate(params.addr, params.ip, params.cache_hit,
-                                   params.type, params.metadata_in);
-#endif
-
-      prefetcher_map_L2C.erase(ROB.entry[ROB.head].instr_id);
-    }
-
-#endif
-
-// L1I
-#if defined(PREFETCH_ON_COMMIT_L1I) || defined(SPEC_COMMIT_L1I)
-
-    if (prefetcher_map_L1I.count(ROB.entry[ROB.head].instr_id) == 1) {
-
-      L1I_PREFETCHER_PARAMS params =
-          prefetcher_map_L1I[ROB.entry[ROB.head].instr_id];
-
-#ifdef SPEC_COMMIT_L1I
-      // given speculative bit as 0.
-      L1I.l1i_prefetcher_cache_operate(params.cpu, params.ip, params.cache_hit,
-                                       params.prefetch_hit, 0);
-#endif
-#ifndef SPEC_COMMIT_L1I
-      L1I.l1i_prefetcher_cache_operate(params.cpu, params.ip, params.cache_hit,
-                                       params.prefetch_hit);
-#endif
-      prefetcher_map_L1I.erase(ROB.entry[ROB.head].instr_id);
-
-      l1i_map_size--;
-    }
-
-#endif
 
     ooo_model_instr empty_entry;
 

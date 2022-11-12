@@ -2,33 +2,6 @@
 #define CACHE_H
 #include "memory_class.h"
 using namespace std;
-//<-------------------------------------------------My #defines
-//-------------------------------------------------------->
-#include <set>
-
-//* Generic variables ========================
-extern uint64_t mshr_full_l0i, mshr_full_l0d, mshr_full_l1i, mshr_full_l1d,
-    mshr_full_l2c, mshr_full_llc, prefetched_block_hit_mshr_buffer;
-
-//* FNL+MMA  ---------------
-extern uint64_t non_spec_fnlmma_call, spec_fnlmma_call;
-
-//* IPCP -------------------------
-extern uint64_t l0d_accesses, interval_l1d_misses, useful_l1d, useful_both,
-    l1d_wq_full;
-
-//----------------------------------
-
-//* Defined Variables ----------------
-extern uint64_t total_prefetches, times_prefetched;
-
-extern uint64_t last_core_cycles, epoch;
-
-extern uint64_t prefetch_hits_l1d, demand_misses, load_accesses;
-
-//* L2C -------------------------
-extern uint64_t prefetch_hits_l2c, prefetch_hits_l2c_RQ, l2c_handle_read;
-//*--------------------------------------------------------------
 
 // PAGE
 extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
@@ -213,14 +186,6 @@ extern uint64_t l1d_call_count, prev_instr_id, curr_inst_id, o3_count,
 
 class CACHE : public MEMORY {
 public:
-#ifdef IPCP_PREFETCHER
-  uint64_t pref_useful[NUM_CPUS][6], pref_filled[NUM_CPUS][6],
-      pref_late[NUM_CPUS][6];
-#endif
-
-  uint64_t lateness_counter, lateness_FNL_counter, lateness_MMA_counter,
-      lateness_Temporal_counter, pf_useful_2, pf_FNL_useful, pf_MMA_useful,
-      pf_Temporal_useful, not_defined_useful;
 
 #ifdef NS_INST_PRIORITY
   uint64_t mshr_spec_buffer_full;
@@ -306,13 +271,6 @@ public:
     pf_useless = 0;
     pf_fill = 0;
 
-    pf_useful_2 = 0;
-    pf_FNL_useful = 0;
-    pf_MMA_useful = 0, not_defined_useful = 0;
-    lateness_counter = 0;
-    lateness_FNL_counter = 0;
-    lateness_MMA_counter = 0;
-
 #ifdef NS_INST_PRIORITY
     mshr_spec_buffer_full = 0;
 #endif
@@ -335,17 +293,10 @@ public:
       get_size(uint8_t queue_type, uint64_t address);
 
   int check_hit(PACKET *packet), invalidate_entry(uint64_t inval_addr),
-      check_mshr(PACKET *packet);
-#ifdef IPCP_PREFETCHER_NEW
-  int prefetch_line(uint64_t ip, uint64_t base_addr, uint64_t pf_addr,
-                    int prefetch_fill_level, uint32_t prefetch_metadata,
-                    uint8_t speculative_bit, uint32_t ipcp_offset_value);
-#endif
-#ifndef IPCP_PREFETCHER_NEW
-  int prefetch_line(uint64_t ip, uint64_t base_addr, uint64_t pf_addr,
-                    int prefetch_fill_level, uint32_t prefetch_metadata);
-#endif
-  int kpc_prefetch_line(uint64_t base_addr, uint64_t pf_addr,
+      check_mshr(PACKET *packet),
+      prefetch_line(uint64_t ip, uint64_t base_addr, uint64_t pf_addr,
+                    int prefetch_fill_level, uint32_t prefetch_metadata),
+      kpc_prefetch_line(uint64_t base_addr, uint64_t pf_addr,
                         int prefetch_fill_level, int delta, int depth,
                         int signature, int confidence,
                         uint32_t prefetch_metadata);
@@ -369,19 +320,10 @@ public:
       l1d_prefetcher_initialize(), l2c_prefetcher_initialize(),
       llc_prefetcher_initialize(),
 
-#if defined(SPEC_COMMIT_L1D) || defined(GHOST_PREFETCHING)
-      prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
-                         uint8_t type, uint8_t speculative_bit),
-      l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
-                             uint8_t type, uint8_t speculative_bit),
-#endif
-#if !defined(SPEC_COMMIT_L1D) && !defined(GHOST_PREFETCHING)
       prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
                          uint8_t type),
       l1d_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
                              uint8_t type),
-#endif
-
       prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way,
                             uint8_t prefetch, uint64_t evicted_addr),
       l1d_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way,
@@ -392,35 +334,14 @@ public:
       l1d_prefetcher_final_stats(), l2c_prefetcher_final_stats(),
       llc_prefetcher_final_stats();
 
-//* @Tarun: Changing the declaration of cache_operate to have a speculative bit
-// at the end.
-#ifdef SPEC_COMMIT_L1I
-  void (*l1i_prefetcher_cache_operate)(uint32_t, uint64_t, uint8_t, uint8_t,
-                                       uint8_t);
-#endif
-
-#ifndef SPEC_COMMIT_L1I
   void (*l1i_prefetcher_cache_operate)(uint32_t, uint64_t, uint8_t, uint8_t);
-#endif
 
   void (*l1i_prefetcher_cache_fill)(uint32_t, uint64_t, uint32_t, uint32_t,
                                     uint8_t, uint64_t);
 
-#ifdef FNLMMA
-  void l1i_prefetcher_warmup_reset();
-#endif
-
-#ifdef SPEC_COMMIT_L2C
   uint32_t l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
-                                  uint8_t type, uint32_t metadata_in,
-                                  uint8_t speculative_bit);
-#endif
-#ifndef SPEC_COMMIT_L2C
-  uint32_t l2c_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
-                                  uint8_t type, uint32_t metadata_in);
-#endif
-
-  uint32_t llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
+                                  uint8_t type, uint32_t metadata_in),
+      llc_prefetcher_operate(uint64_t addr, uint64_t ip, uint8_t cache_hit,
                                   uint8_t type, uint32_t metadata_in),
       l2c_prefetcher_cache_fill(uint64_t addr, uint32_t set, uint32_t way,
                                 uint8_t prefetch, uint64_t evicted_addr,

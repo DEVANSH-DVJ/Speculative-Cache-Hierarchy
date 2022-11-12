@@ -2,12 +2,6 @@
 #include "ooo_cpu.h"
 #include "set.h"
 
-// Required for IPCP Prefetcher
-#define PREF_CLASS_MASK                                                        \
-  0xF00 // 0x3C000 //0x78000 //0x7800 //0x1e000 //0xF00	//according to IPCP
-        // region size
-#define NUM_OF_STRIDE_BITS                                                     \
-  8 // 14 //15 //11 //13 //8			//according to IPCP region size
 
 //---------------------------------------------- My #defines
 //------------------------------------------------------
@@ -478,7 +472,7 @@ void CACHE::handle_fill() {
         });
 
         // update prefetchers
-#ifdef SPEC_COMMIT_L1I
+
         // FNL+MMA works on both L0 and L1 with SpecPref
         if (cache_type == IS_L0I)
           l1i_prefetcher_cache_fill(
@@ -495,26 +489,13 @@ void CACHE::handle_fill() {
                   << LOG2_BLOCK_SIZE,
               set, way, (MSHR.entry[mshr_index].type == PREFETCH) ? 1 : 0,
               ((block[set][way].ip) >> LOG2_BLOCK_SIZE) << LOG2_BLOCK_SIZE);
-#endif
-#ifndef SPEC_COMMIT_L1I
-        // blocks are only filled in the L1I cache
-        if (cache_type == IS_L1I)
-          l1i_prefetcher_cache_fill(
-              fill_cpu,
-              ((MSHR.entry[mshr_index].ip) >> LOG2_BLOCK_SIZE)
-                  << LOG2_BLOCK_SIZE,
-              set, way, (MSHR.entry[mshr_index].type == PREFETCH) ? 1 : 0,
-              ((block[set][way].ip) >> LOG2_BLOCK_SIZE) << LOG2_BLOCK_SIZE);
-#endif
 
-#if !defined(SPEC_COMMIT_L1D) && !defined(GHOST_PREFETCHING)
         if (cache_type == IS_L1D)
           l1d_prefetcher_cache_fill(
               MSHR.entry[mshr_index].full_addr, set, way,
               (MSHR.entry[mshr_index].type == PREFETCH) ? 1 : 0,
               block[set][way].address << LOG2_BLOCK_SIZE,
               MSHR.entry[mshr_index].pf_metadata);
-#endif
 
         if (cache_type == IS_L2C)
           MSHR.entry[mshr_index].pf_metadata = l2c_prefetcher_cache_fill(
@@ -539,21 +520,6 @@ void CACHE::handle_fill() {
         sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
         sim_access[fill_cpu][MSHR.entry[mshr_index].type]++;
 
-#ifdef IPCP_PREFETCHER
-        // for IPCP Throttling.
-        if (cache_type == IS_L1D || cache_type == IS_L0D) {
-          if (MSHR.entry[mshr_index].late_pref == 1) {
-            int temp_pf_class =
-                (MSHR.entry[mshr_index].pf_metadata & PREF_CLASS_MASK) >>
-                NUM_OF_STRIDE_BITS;
-            if (temp_pf_class < 5) {
-              pref_late[cpu][(
-                  (MSHR.entry[mshr_index].pf_metadata & PREF_CLASS_MASK) >>
-                  NUM_OF_STRIDE_BITS)]++;
-            }
-          }
-        }
-#endif
 
         DPT(if (warmup_complete[fill_cpu]) {
           cout << "[" << NAME << "] " << __func__
@@ -727,10 +693,6 @@ void CACHE::handle_writeback() {
 
       // mark dirty
       block[set][way].dirty = 1;
-
-      if (WQ.entry[index].prefetch == 1) {
-        block[set][way].prefetch = 1;
-      }
 
       if (cache_type == IS_ITLB)
         WQ.entry[index].instruction_pa = block[set][way].data;
@@ -1001,7 +963,7 @@ void CACHE::handle_writeback() {
           // will be during the non-speculative execution itself because
           // writebacks are for committed blocks only.
 
-#ifdef SPEC_COMMIT_L1I
+
           if (cache_type == IS_L0I)
             l1i_prefetcher_cache_fill(
                 writeback_cpu,
@@ -1015,17 +977,7 @@ void CACHE::handle_writeback() {
                 ((WQ.entry[index].ip) >> LOG2_BLOCK_SIZE) << LOG2_BLOCK_SIZE,
                 set, way, 0,
                 ((block[set][way].ip) >> LOG2_BLOCK_SIZE) << LOG2_BLOCK_SIZE);
-#endif
-#ifndef SPEC_COMMIT_L1I
-          // blocks are only filled in the L1I cache
-          if (cache_type == IS_L1I)
-            l1i_prefetcher_cache_fill(
-                writeback_cpu,
-                ((WQ.entry[index].ip) >> LOG2_BLOCK_SIZE) << LOG2_BLOCK_SIZE,
-                set, way, 0,
-                ((block[set][way].ip) >> LOG2_BLOCK_SIZE) << LOG2_BLOCK_SIZE);
-#endif
-#if defined(SPEC_COMMIT_L1D) || defined(GHOST_PREFETCHING)
+
           if (cache_type == IS_L0D)
             l1d_prefetcher_cache_fill(WQ.entry[index].full_addr, set, way, 0,
                                       block[set][way].address
@@ -1037,19 +989,20 @@ void CACHE::handle_writeback() {
                                       block[set][way].address
                                           << LOG2_BLOCK_SIZE,
                                       WQ.entry[index].pf_metadata);
-#endif
-#if !defined(SPEC_COMMIT_L1D) && !defined(GHOST_PREFETCHING)
-          if (cache_type == IS_L1D)
-            l1d_prefetcher_cache_fill(WQ.entry[index].full_addr, set, way, 0,
-                                      block[set][way].address
-                                          << LOG2_BLOCK_SIZE,
-                                      WQ.entry[index].pf_metadata);
-#endif
+
           else if (cache_type == IS_L2C)
             WQ.entry[index].pf_metadata = l2c_prefetcher_cache_fill(
                 WQ.entry[index].address << LOG2_BLOCK_SIZE, set, way, 0,
                 block[set][way].address << LOG2_BLOCK_SIZE,
                 WQ.entry[index].pf_metadata);
+          if (cache_type == IS_LLC) {
+            cpu = writeback_cpu;
+            WQ.entry[index].pf_metadata = llc_prefetcher_cache_fill(
+                WQ.entry[index].address << LOG2_BLOCK_SIZE, set, way, 0,
+                block[set][way].address << LOG2_BLOCK_SIZE,
+                WQ.entry[index].pf_metadata);
+            cpu = 0;
+          }
 
           // update replacement policy
           if (cache_type == IS_LLC) {
@@ -1072,10 +1025,6 @@ void CACHE::handle_writeback() {
 
           // mark dirty
           block[set][way].dirty = 1;
-
-          if (WQ.entry[index].prefetch == 1) {
-            block[set][way].prefetch = 1;
-          }
 
           // check fill level
           if (WQ.entry[index].fill_level < fill_level) {
@@ -1582,231 +1531,6 @@ void CACHE::handle_read() {
                    << "  current: " << current_core_cycle[read_cpu] << endl;
             });
 
-#ifdef MUONTRAP_PREFETCH_ON_COMMIT
-
-            // Speculative / On-Commit Prefetching
-
-            if (RQ.entry[index].is_speculative == 1) {
-              // save the parameters for the prefetcher in a map and then call
-              // on-commit.
-
-#ifdef PREFETCH_ON_COMMIT_L1I
-              // only LOAD requests at L1I can invoke the prefetcher
-              if (cache_type == IS_L1I) {
-
-                L1I_PREFETCHER_PARAMS prefetcher_params;
-
-                prefetcher_params.ip = RQ.entry[index].ip;
-                prefetcher_params.cache_hit = 1;
-                prefetcher_params.prefetch_hit = block[set][way].prefetch;
-                prefetcher_params.cpu = read_cpu;
-
-                ooo_cpu[read_cpu].prefetcher_map_L1I[RQ.entry[index].instr_id] =
-                    prefetcher_params;
-
-                DPT(if (warmup_complete[read_cpu]) {
-                  cout << "[" << NAME << "] " << __func__
-                       << " saving prefetcher operate call params in the map;"
-                       << endl;
-                });
-              }
-#endif
-
-#ifdef SPEC_COMMIT_L1I
-
-              if (cache_type == IS_L0I) {
-                spec_fnlmma_call++;
-
-                L1I_PREFETCHER_PARAMS prefetcher_params;
-
-                prefetcher_params.ip = RQ.entry[index].ip;
-                prefetcher_params.cache_hit = 1;
-                prefetcher_params.prefetch_hit = block[set][way].prefetch;
-                prefetcher_params.cpu = read_cpu;
-
-                ooo_cpu[read_cpu].prefetcher_map_L1I[RQ.entry[index].instr_id] =
-                    prefetcher_params;
-
-                l1i_map_size++;
-                if (l1i_map_size > l1i_max_map_size)
-                  l1i_max_map_size = l1i_map_size;
-
-                DPT(if (warmup_complete[read_cpu]) {
-                  cout << "[" << NAME << "] " << __func__
-                       << " saving prefetcher operate call params in the map;"
-                       << endl;
-                  cout << "[" << NAME << "] " << __func__
-                       << " speculative call to prefetcher  speculative_bit: 1"
-                       << endl;
-                });
-
-                // invoke prefetcher
-                l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 1,
-                                             block[set][way].prefetch, 1);
-              }
-
-#endif
-
-#ifdef PREFETCH_ON_COMMIT_L1D
-              if (cache_type == IS_L1D) {
-
-                PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                prefetcher_params.addr = RQ.entry[index].full_addr;
-                prefetcher_params.ip = RQ.entry[index].ip;
-                prefetcher_params.cache_hit = 1;
-                prefetcher_params.type = RQ.entry[index].type;
-                prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                prefetcher_params.cpu = read_cpu;
-
-                ooo_cpu[read_cpu].prefetcher_map_L1D[RQ.entry[index].instr_id] =
-                    prefetcher_params;
-
-                l1d_map_size++;
-                if (l1d_map_size > l1d_max_map_size)
-                  l1d_max_map_size = l1d_map_size;
-
-                DPT(if (warmup_complete[read_cpu]) {
-                  cout << "[" << NAME << "] " << __func__
-                       << " saving prefetcher operate call params in the map;"
-                       << endl;
-                });
-              }
-#endif
-
-#if defined(SPEC_COMMIT_L1D) || defined(GHOST_PREFETCHING)
-
-              if (cache_type == IS_L0D) {
-
-                PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                prefetcher_params.addr = RQ.entry[index].full_addr;
-                prefetcher_params.ip = RQ.entry[index].ip;
-                prefetcher_params.cache_hit = 1;
-                prefetcher_params.type = RQ.entry[index].type;
-                prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                prefetcher_params.cpu = read_cpu;
-
-                ooo_cpu[read_cpu].prefetcher_map_L1D[RQ.entry[index].instr_id] =
-                    prefetcher_params;
-
-                l1d_map_size++;
-                if (l1d_map_size > l1d_max_map_size)
-                  l1d_max_map_size = l1d_map_size;
-
-                DPT(if (warmup_complete[read_cpu]) {
-                  cout << "[" << NAME << "] " << __func__
-                       << " saving prefetcher operate call params in the map;"
-                       << endl;
-                  cout << "[" << NAME << "] " << __func__
-                       << " speculative call to prefetcher  speculative_bit: 1"
-                       << endl;
-                });
-
-                // invoke prefetcher
-                if (speculative_prefetch == 1) {
-                  l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                         RQ.entry[index].ip, 1,
-                                         RQ.entry[index].type, 1);
-                }
-              }
-#endif
-
-#ifdef PREFETCH_ON_COMMIT_L2C
-              if (cache_type == IS_L2C) {
-                L2C_PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                prefetcher_params.addr = block[set][way].address
-                                         << LOG2_BLOCK_SIZE;
-                prefetcher_params.ip = RQ.entry[index].ip;
-                prefetcher_params.cache_hit = 1;
-                prefetcher_params.type = RQ.entry[index].type;
-                prefetcher_params.metadata_in = 0;
-                prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                prefetcher_params.cpu = read_cpu;
-
-                prefetcher_params.from_handle_prefetch = 0;
-
-                ooo_cpu[read_cpu].prefetcher_map_L2C[RQ.entry[index].instr_id] =
-                    prefetcher_params;
-              }
-#endif
-
-#ifdef SPEC_COMMIT_L2C
-              else if (cache_type == IS_L2C) {
-                L2C_PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                prefetcher_params.addr = block[set][way].address
-                                         << LOG2_BLOCK_SIZE;
-                prefetcher_params.ip = RQ.entry[index].ip;
-                prefetcher_params.cache_hit = 1;
-                prefetcher_params.type = RQ.entry[index].type;
-                prefetcher_params.metadata_in = 0;
-                prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                prefetcher_params.cpu = read_cpu;
-
-                prefetcher_params.from_handle_prefetch = 0;
-
-                ooo_cpu[read_cpu].prefetcher_map_L2C[RQ.entry[index].instr_id] =
-                    prefetcher_params;
-
-                l2c_prefetcher_operate(
-                    block[set][way].address << LOG2_BLOCK_SIZE,
-                    RQ.entry[index].ip, 1, RQ.entry[index].type, 0, 1);
-              }
-#endif
-            }
-
-            else if (RQ.entry[index].is_speculative == 0) {
-              // allow the call to prefetcher operate.
-
-              DPT(if (warmup_complete[read_cpu]) {
-                cout << "[" << NAME << "] " << __func__
-                     << " committed call to prefetcher operate; "
-                        "speculative_bit: 0"
-                     << endl;
-              });
-
-#ifdef SPEC_COMMIT_L1I
-              if (cache_type == IS_L0I) {
-                non_spec_fnlmma_call++;
-                l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 1,
-                                             block[set][way].prefetch, 0);
-              }
-#endif
-#ifndef SPEC_COMMIT_L1I
-              if (cache_type == IS_L1I) {
-                l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 1,
-                                             block[set][way].prefetch);
-              }
-#endif
-
-#if defined(SPEC_COMMIT_L1D) || defined(GHOST_PREFETCHING)
-              if (cache_type == IS_L0D) {
-                l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                       RQ.entry[index].ip, 1,
-                                       RQ.entry[index].type, 0);
-              }
-#endif
-#if !defined(SPEC_COMMIT_L1D) && !defined(GHOST_PREFETCHING)
-              if (cache_type == IS_L1D) {
-                l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                       RQ.entry[index].ip, 1,
-                                       RQ.entry[index].type);
-              }
-#endif
-
-              else if (cache_type == IS_L2C) {
-                l2c_prefetcher_operate(
-                    block[set][way].address << LOG2_BLOCK_SIZE,
-                    RQ.entry[index].ip, 1, RQ.entry[index].type, 0);
-              }
-            }
-
-#endif
-
-#ifndef MUONTRAP_PREFETCH_ON_COMMIT
-
             // Baseline (unsafe) prefetching
 
             // Directly invoking the prefetcher even if it was speculative
@@ -1829,8 +1553,6 @@ void CACHE::handle_read() {
                                      RQ.entry[index].ip, 1,
                                      RQ.entry[index].type, 0);
             }
-
-#endif
           }
 
           if (cache_type == IS_LLC) {
@@ -1900,7 +1622,6 @@ void CACHE::handle_read() {
             });
 
             pf_useful++;
-            pf_useful_2++;
 
             if (cache_type == IS_L0D || cache_type == IS_L1D) {
               useful_both++;
@@ -1909,36 +1630,8 @@ void CACHE::handle_read() {
               useful_l1d++;
             }
 
-#ifdef IPCP_PREFETCHER_NEW
-            // for IPCP.
-            if (cache_type == IS_L0D || cache_type == IS_L1D) {
-              IPCP_OFFSET_USEFUL_COUNT[block[set][way].ipcp_offset]++;
-            }
-#endif
-
-#ifdef FNLMMA
-            // stats for FNL
-            // Increment the usefulness counter for FNL and MMA component
-            if (cache_type == IS_L1I || cache_type == IS_L0I) {
-
-              if (block[set][way].is_FNL == 0)
-                pf_MMA_useful++;
-              else if (block[set][way].is_FNL == 1)
-                pf_FNL_useful++;
-              else if (block[set][way].is_FNL == 2)
-                not_defined_useful++;
-              else if (block[set][way].is_FNL == 3)
-                pf_Temporal_useful++;
-            }
-#endif
-
             block[set][way].prefetch = 0;
 
-#ifdef IPCP_PREFETCHER
-            // for IPCP Throttling.
-            if (block[set][way].pref_class < 5)
-              pref_useful[cpu][block[set][way].pref_class]++;
-#endif
           }
 
           block[set][way].used = 1;
@@ -2267,17 +1960,6 @@ void CACHE::handle_read() {
                   cout << endl;
                 });
 
-                lateness_counter++;
-
-#ifdef FNLMMA
-                if (MSHR.entry[mshr_index].is_FNL == 1) {
-                  lateness_FNL_counter++;
-                } else if (MSHR.entry[mshr_index].is_FNL == 0)
-                  lateness_MMA_counter++;
-                else if (MSHR.entry[mshr_index].is_FNL == 3)
-                  lateness_Temporal_counter++;
-#endif
-
                 uint8_t prior_returned = MSHR.entry[mshr_index].returned;
                 uint64_t prior_event_cycle = MSHR.entry[mshr_index].event_cycle;
 
@@ -2326,12 +2008,6 @@ void CACHE::handle_read() {
                 MSHR.entry[mshr_index].fill_l0d = fill_l0d;
                 MSHR.entry[mshr_index].fill_l0i = fill_l0i;
 
-#ifdef IPCP_PREFETCHER
-                // stats for IPCP
-                if (cache_type == IS_L1D) {
-                  MSHR.entry[mshr_index].late_pref = 1;
-                }
-#endif
               }
 
               MSHR_MERGED[RQ.entry[index].type]++;
@@ -2353,265 +2029,38 @@ void CACHE::handle_read() {
           }
 
           if (miss_handled) {
-
-            //* Update prefetcher on load instruction
-            if (RQ.entry[index].type == LOAD) {
-
-              DPT(if (warmup_complete[read_cpu]) {
-                cout << "[" << NAME << "] " << __func__
-                     << " executing prefetcher_operate on type == LOAD;";
-                cout << " instr_id: " << RQ.entry[index].instr_id
-                     << " address: " << hex << RQ.entry[index].address << dec
-                     << " full_addr: ";
-                cout << hex << RQ.entry[index].full_addr << dec
-                     << " is_instruction: "
-                     << uint32_t(RQ.entry[index].instruction);
-                cout << " is_data " << RQ.entry[index].data;
-                cout << " event_cycle: " << RQ.entry[index].event_cycle
-                     << "  current: " << current_core_cycle[read_cpu] << endl;
-              });
-
-#ifdef MUONTRAP_PREFETCH_ON_COMMIT
-
-              if (RQ.entry[index].is_speculative == 1) {
-                // save the parameters for the prefetcher in a map and then call
-                // on-commit.
-
-#ifdef PREFETCH_ON_COMMIT_L1I
-                if (cache_type == IS_L1I) {
-
-                  L1I_PREFETCHER_PARAMS prefetcher_params;
-
-                  prefetcher_params.ip = RQ.entry[index].ip;
-                  prefetcher_params.cache_hit = 0;
-                  prefetcher_params.prefetch_hit = 0;
-                  prefetcher_params.cpu = read_cpu;
-
-                  ooo_cpu[read_cpu]
-                      .prefetcher_map_L1I[RQ.entry[index].instr_id] =
-                      prefetcher_params;
-
-                  DPT(if (warmup_complete[read_cpu]) {
-                    cout << "[" << NAME << "] " << __func__
-                         << " saving prefetcher operate call params in the map;"
-                         << endl;
-                  });
-                }
-#endif
-
-#ifdef SPEC_COMMIT_L1I
-                // L0I invokes the L1I prefetcher
-                if (cache_type == IS_L0I) {
-                  spec_fnlmma_call++;
-
-                  L1I_PREFETCHER_PARAMS prefetcher_params;
-
-                  prefetcher_params.cpu = read_cpu;
-                  prefetcher_params.ip = RQ.entry[index].ip;
-                  prefetcher_params.cache_hit = 0;
-                  prefetcher_params.prefetch_hit = 0;
-
-                  ooo_cpu[read_cpu]
-                      .prefetcher_map_L1I[RQ.entry[index].instr_id] =
-                      prefetcher_params;
-
-                  l1i_map_size++;
-                  if (l1i_map_size > l1i_max_map_size)
-                    l1i_max_map_size = l1i_map_size;
-
-                  DPT(if (warmup_complete[read_cpu]) {
-                    cout << "[" << NAME << "] " << __func__
-                         << " saving prefetcher operate call params in the map;"
-                         << endl;
-                    cout << "[" << NAME << "] " << __func__
-                         << " speculative call to prefetcher;  "
-                            "speculative_bit: 1"
-                         << endl;
-                  });
-
-                  l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 0,
-                                               0, 1);
-                }
-#endif
-
-#ifdef PREFETCH_ON_COMMIT_L1D
-                if (cache_type == IS_L1D) {
-
-                  PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                  prefetcher_params.addr = RQ.entry[index].full_addr;
-                  prefetcher_params.ip = RQ.entry[index].ip;
-                  prefetcher_params.cache_hit = 0;
-                  prefetcher_params.type = RQ.entry[index].type;
-                  prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                  prefetcher_params.cpu = read_cpu;
-
-                  ooo_cpu[read_cpu]
-                      .prefetcher_map_L1D[RQ.entry[index].instr_id] =
-                      prefetcher_params;
-
-                  l1d_map_size++;
-                  if (l1d_map_size > l1d_max_map_size)
-                    l1d_max_map_size = l1d_map_size;
-                }
-#endif
-
-#if defined(SPEC_COMMIT_L1D) || defined(GHOST_PREFETCHING)
-                // L0D invokes the L1D-prefetcher
-                if (cache_type == IS_L0D) {
-
-                  PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                  prefetcher_params.addr = RQ.entry[index].full_addr;
-                  prefetcher_params.ip = RQ.entry[index].ip;
-                  prefetcher_params.cache_hit = 0;
-                  prefetcher_params.type = RQ.entry[index].type;
-                  prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                  prefetcher_params.cpu = read_cpu;
-
-                  ooo_cpu[read_cpu]
-                      .prefetcher_map_L1D[RQ.entry[index].instr_id] =
-                      prefetcher_params;
-
-                  l1d_map_size++;
-                  if (l1d_map_size > l1d_max_map_size)
-                    l1d_max_map_size = l1d_map_size;
-
-                  if (speculative_prefetch == 1) {
-                    l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                           RQ.entry[index].ip, 0,
-                                           RQ.entry[index].type, 1);
-                  }
-                }
-#endif
-
-#ifdef PREFETCH_ON_COMMIT_L2C
-                if (cache_type == IS_L2C) {
-                  L2C_PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                  prefetcher_params.addr = RQ.entry[index].address
-                                           << LOG2_BLOCK_SIZE;
-                  prefetcher_params.ip = RQ.entry[index].ip;
-                  prefetcher_params.cache_hit = 0;
-                  prefetcher_params.type = RQ.entry[index].type;
-                  prefetcher_params.metadata_in = 0;
-                  prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                  prefetcher_params.cpu = read_cpu;
-
-                  prefetcher_params.from_handle_prefetch = 0;
-
-                  ooo_cpu[read_cpu]
-                      .prefetcher_map_L2C[RQ.entry[index].instr_id] =
-                      prefetcher_params;
-                }
-#endif
-
-#ifdef SPEC_COMMIT_L2C
-                if (cache_type == IS_L2C) {
-                  L2C_PREFETCHER_REQUEST_PARAMS prefetcher_params;
-
-                  prefetcher_params.addr = RQ.entry[index].address
-                                           << LOG2_BLOCK_SIZE;
-                  prefetcher_params.ip = RQ.entry[index].ip;
-                  prefetcher_params.cache_hit = 0;
-                  prefetcher_params.type = RQ.entry[index].type;
-                  prefetcher_params.metadata_in = 0;
-                  prefetcher_params.curr_cycle = current_core_cycle[read_cpu];
-                  prefetcher_params.cpu = read_cpu;
-
-                  prefetcher_params.from_handle_prefetch = 0;
-
-                  ooo_cpu[read_cpu]
-                      .prefetcher_map_L2C[RQ.entry[index].instr_id] =
-                      prefetcher_params;
-
-                  l2c_prefetcher_operate(
-                      RQ.entry[index].address << LOG2_BLOCK_SIZE,
-                      RQ.entry[index].ip, 0, RQ.entry[index].type, 0, 1);
-                }
-#endif
-              }
-
-              else if (RQ.entry[index].is_speculative == 0) {
-
-                DPT(if (warmup_complete[read_cpu]) {
-                  cout << "[" << NAME << "] " << __func__
-                       << " committed call to prefetcher operate; "
-                          "speculative_bit: 0"
-                       << endl;
-                });
-
-#ifdef SPEC_COMMIT_L1I
-                if (cache_type == IS_L0I) {
-                  non_spec_fnlmma_call++;
-                  l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 0,
-                                               0, 0);
-                }
-#endif
-#ifndef SPEC_COMMIT_L1I
-                if (cache_type == IS_L1I) {
-                  l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 0,
-                                               0);
-                }
-#endif
-
-#if defined(SPEC_COMMIT_L1D) || defined(GHOST_PREFETCHING)
-                if (cache_type == IS_L0D) {
-                  l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                         RQ.entry[index].ip, 0,
-                                         RQ.entry[index].type, 0);
-                }
-#endif
-#if !defined(SPEC_COMMIT_L1D) && !defined(GHOST_PREFETCHING)
-                if (cache_type == IS_L1D) {
-                  l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                         RQ.entry[index].ip, 0,
-                                         RQ.entry[index].type);
-                }
-#endif
-
-                else if (cache_type == IS_L2C) {
-                  l2c_prefetcher_operate(
-                      RQ.entry[index].address << LOG2_BLOCK_SIZE,
-                      RQ.entry[index].ip, 0, RQ.entry[index].type, 0);
-                }
-              }
-
-#endif
-
-#ifndef MUONTRAP_PREFETCH_ON_COMMIT
-              // call the prefetcher operate here itself.
-
-              if (cache_type == IS_L1I) {
-                l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 0,
-                                             0);
-              }
-
-              if (cache_type == IS_L1D) {
-                l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                       RQ.entry[index].ip, 0,
-                                       RQ.entry[index].type);
-              }
-
-              else if (cache_type == IS_L2C) {
-                l2c_prefetcher_operate(
-                    RQ.entry[index].address << LOG2_BLOCK_SIZE,
-                    RQ.entry[index].ip, 0, RQ.entry[index].type, 0);
-              }
-#endif
+            // update prefetcher on load instruction
+          if (RQ.entry[index].type == LOAD) {
+            if (cache_type == IS_L1I)
+              l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 0, 0);
+            if (cache_type == IS_L1D)
+              l1d_prefetcher_operate(RQ.entry[index].full_addr,
+                                     RQ.entry[index].ip, 0,
+                                     RQ.entry[index].type);
+            if (cache_type == IS_L2C)
+              l2c_prefetcher_operate(RQ.entry[index].address << LOG2_BLOCK_SIZE,
+                                     RQ.entry[index].ip, 0,
+                                     RQ.entry[index].type, 0);
+            if (cache_type == IS_LLC) {
+              cpu = read_cpu;
+              llc_prefetcher_operate(RQ.entry[index].address << LOG2_BLOCK_SIZE,
+                                     RQ.entry[index].ip, 0,
+                                     RQ.entry[index].type, 0);
+              cpu = 0;
             }
-
-            MISS[RQ.entry[index].type]++;
-            ACCESS[RQ.entry[index].type]++;
-
-            // remove this entry from RQ
-            RQ.remove_queue(&RQ.entry[index]);
-            reads_available_this_cycle--;
           }
+
+          MISS[RQ.entry[index].type]++;
+          ACCESS[RQ.entry[index].type]++;
+
+          // remove this entry from RQ
+          RQ.remove_queue(&RQ.entry[index]);
+          reads_available_this_cycle--;
         }
-      } else {
-        return;
       }
+    } else {
+      return;
+    }
 
 #ifdef NS_INST_PRIORITY
     }
@@ -2624,6 +2073,9 @@ void CACHE::handle_read() {
 }
 
 void CACHE::handle_prefetch() {
+  // We will not use this function
+  assert(0);
+
   // handle prefetch
 
   for (uint32_t i = 0; i < MAX_READ; i++) {
@@ -3038,38 +2490,12 @@ void CACHE::fill_cache(uint32_t set, uint32_t way, PACKET *packet) {
   block[set][way].dirty = 0;
   block[set][way].prefetch = (packet->type == PREFETCH) ? 1 : 0;
 
-#ifdef FNLMMA
-  if (cache_type == IS_L1I || cache_type == IS_L0I) {
-    block[set][way].is_FNL = packet->is_FNL;
-  }
-#endif
-
-#ifdef IPCP_PREFETCHER_NEW
-  if (cache_type == IS_L0D || cache_type == IS_L1D) {
-    block[set][way].ipcp_offset = packet->offset_value_ipcp; // for IPCP.
-  }
-#endif
 
   block[set][way].used = 0;
-
-#ifdef IPCP_PREFETCHER
-  //@Tarun: Addition for IPCP Throttling.
-  block[set][way].pref_class = ((packet->pf_metadata & 0xF00) >> 8);
-  block[set][way].pref_class =
-      ((packet->pf_metadata & PREF_CLASS_MASK) >> NUM_OF_STRIDE_BITS);
-#endif
 
   if (block[set][way].prefetch)
     pf_fill++;
 
-#ifdef IPCP_PREFETCHER
-  // addition for IPCP Throttling.
-  if (cache_type == IS_L1D || cache_type == IS_L0D) {
-    if (block[set][way].pref_class < 5) {
-      pref_filled[cpu][block[set][way].pref_class]++;
-    }
-  }
-#endif
 
   // set committed bit to be 0
   if (cache_type == IS_L0D || cache_type == IS_L0I) {
@@ -3426,16 +2852,10 @@ int CACHE::add_wq(PACKET *packet) {
   return -1;
 }
 
-#if defined(SPEC_COMMIT_L1D) || defined(GHOST_PREFETCHING)
-int CACHE::prefetch_line(uint64_t ip, uint64_t base_addr, uint64_t pf_addr,
-                         int pf_fill_level, uint32_t prefetch_metadata,
-                         uint8_t speculative_bit, uint32_t ipcp_offset_value)
-#endif
 
-#if !defined(SPEC_COMMIT_L1D) && !defined(GHOST_PREFETCHING)
-    int CACHE::prefetch_line(uint64_t ip, uint64_t base_addr, uint64_t pf_addr,
+  int CACHE::prefetch_line(uint64_t ip, uint64_t base_addr, uint64_t pf_addr,
                              int pf_fill_level, uint32_t prefetch_metadata)
-#endif
+
 {
 
   /*

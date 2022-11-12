@@ -10,126 +10,6 @@ extern uint64_t commit_read_counter;
 extern uint64_t total_loads, non_spec_loads;
 extern uint64_t inst_total_loads, inst_non_spec_loads;
 
-#if defined(PREFETCH_ON_COMMIT_L1I) || defined(SPEC_COMMIT_L1I)
-
-class L1I_PREFETCHER_PARAMS {
-public:
-  uint64_t ip;
-
-  uint32_t cpu;
-
-  uint8_t cache_hit, prefetch_hit;
-
-  L1I_PREFETCHER_PARAMS() {
-    ip = 0;
-    cpu = NUM_CPUS;
-    cache_hit = 0;
-    prefetch_hit = 0;
-  }
-};
-
-#endif
-
-#if defined(PREFETCH_ON_COMMIT_L1D) || defined(SPEC_COMMIT_L1D) ||             \
-    defined(GHOST_PREFETCHING)
-
-class PREFETCHER_REQUEST_PARAMS {
-public:
-  uint64_t addr, ip, instr_id, curr_cycle;
-
-  uint32_t cpu;
-
-  uint8_t cache_hit, type;
-
-  PREFETCHER_REQUEST_PARAMS() {
-    addr = 0;
-    ip = 0;
-    instr_id = 0;
-    curr_cycle = 0;
-    cache_hit = 0;
-    type = 0;
-    cpu = NUM_CPUS;
-  }
-};
-
-class PREFETCHER_CACHE_FILL_PARAMS {
-public:
-  uint64_t addr, evicted_addr, instr_id, curr_cycle;
-
-  uint32_t set, way, metadata_in, cpu;
-
-  uint8_t prefetch;
-
-  PREFETCHER_CACHE_FILL_PARAMS() {
-    addr = 0;
-    evicted_addr = 0;
-    instr_id = 0;
-    curr_cycle = 0;
-    set = 0;
-    way = 0;
-    metadata_in = 0;
-    prefetch = 0;
-    cpu = NUM_CPUS;
-  }
-};
-
-#endif
-
-#if defined(PREFETCH_ON_COMMIT_L2C) || defined(SPEC_COMMIT_L2C)
-
-class L2C_PREFETCHER_REQUEST_PARAMS {
-public:
-  uint64_t addr, ip, instr_id, curr_cycle;
-
-  uint32_t metadata_in, cpu;
-
-  uint8_t cache_hit, type, from_handle_prefetch;
-
-  int PQ_index;
-
-  L2C_PREFETCHER_REQUEST_PARAMS() {
-    addr = 0;
-    ip = 0;
-    instr_id = 0;
-    curr_cycle = 0;
-    metadata_in = 0;
-    cache_hit = 0;
-    type = 0;
-    PQ_index = 0;
-    from_handle_prefetch = 2;
-    cpu = NUM_CPUS;
-  }
-};
-
-class L2C_CACHE_FILL_PARAMS {
-public:
-  uint64_t addr, evicted_addr, instr_id, curr_cycle;
-
-  uint32_t set, way, metadata_in, mshr_index, cpu;
-
-  uint8_t prefetch,
-      isMSHR; // To know if it's from MSHR or WQ.
-
-  int wq_index;
-
-  L2C_CACHE_FILL_PARAMS() {
-    addr = 0;
-    evicted_addr = 0;
-    instr_id = 0;
-    curr_cycle = 0;
-    set = 0;
-    way = 0;
-    metadata_in = 0;
-    prefetch = 0;
-    isMSHR = 2;
-    mshr_index = 0;
-    wq_index = 0;
-    cpu = NUM_CPUS;
-  }
-};
-
-#endif
-
 //-------------------------------------------------------------------------------------------------------------------------
 
 #ifdef CRC2_COMPILE
@@ -164,22 +44,6 @@ class O3_CPU {
 public:
   uint64_t curr_num_retired_flag; // Flag to monitor the checkpoint for number
                                   // of retired instructions.
-
-#if defined(PREFETCH_ON_COMMIT_L1I) || defined(SPEC_COMMIT_L1I)
-  std::map<uint64_t, L1I_PREFETCHER_PARAMS> prefetcher_map_L1I;
-#endif
-
-#if defined(PREFETCH_ON_COMMIT_L1D) || defined(SPEC_COMMIT_L1D) ||             \
-    defined(GHOST_PREFETCHING)
-  std::map<uint64_t, PREFETCHER_REQUEST_PARAMS> prefetcher_map_L1D;
-  std::map<uint64_t, PREFETCHER_CACHE_FILL_PARAMS> cache_fill_map_L1D;
-#endif
-
-#if defined(PREFETCH_ON_COMMIT_L2C) || defined(SPEC_COMMIT_L2C)
-  std::map<uint64_t, L2C_PREFETCHER_REQUEST_PARAMS> prefetcher_map_L2C;
-  std::map<uint64_t, L2C_CACHE_FILL_PARAMS> cache_fill_map_L2C;
-#endif
-
   //*------------------------------------------------
 
 public:
@@ -386,31 +250,12 @@ public:
   void l1i_prefetcher_branch_operate(uint64_t ip, uint8_t branch_type,
                                      uint64_t branch_target);
 
-#ifdef SPEC_COMMIT_L1I
-  void l1i_prefetcher_cache_operate(uint64_t v_addr, uint8_t cache_hit,
-                                    uint8_t prefetch_hit,
-                                    uint8_t speculative_bit);
-#endif
-#ifndef SPEC_COMMIT_L1I
-  void l1i_prefetcher_cache_operate(uint64_t v_addr, uint8_t cache_hit,
-                                    uint8_t prefetch_hit);
-#endif
-
   void l1i_prefetcher_cycle_operate();
   void l1i_prefetcher_cache_fill(uint64_t v_addr, uint32_t set, uint32_t way,
                                  uint8_t prefetch, uint64_t evicted_v_addr);
   void l1i_prefetcher_final_stats();
 
-#ifndef SPEC_COMMIT_L1I
   int prefetch_code_line(uint64_t pf_v_addr);
-#endif
-
-#ifdef SPEC_COMMIT_L1I
-  int prefetch_code_line(uint64_t pf_v_addr, uint8_t is_FNL,
-                         uint8_t speculative_bit);
-  void PrefCodeBlock(uint64_t pf_Block, uint8_t is_FNL,
-                     uint8_t speculative_bit);
-#endif
 };
 
 extern O3_CPU ooo_cpu[NUM_CPUS];

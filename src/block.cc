@@ -33,14 +33,6 @@ int PACKET_QUEUE::check_queue(PACKET *packet) {
             cout << " cycle " << packet->event_cycle << endl;
           });
 
-          if (packet->type == 2) { // type == PREFETCH
-            if (packet->cpu != entry[i].cpu) {
-              cout << "Merging different cpu packets in LLC"
-                   << "  addr: " << hex << packet->address << dec
-                   << " fill_level: " << packet->fill_level << endl;
-            }
-          }
-
           return i;
         }
       }
@@ -71,14 +63,6 @@ int PACKET_QUEUE::check_queue(PACKET *packet) {
             cout << " cycle " << packet->event_cycle << endl;
           });
 
-          if (packet->type == 2) { // type == PREFETCH
-            if (packet->cpu != entry[i].cpu) {
-              cout << "Merging different cpu packets in LLC"
-                   << "  addr: " << hex << packet->address << dec
-                   << " fill_level: " << packet->fill_level << endl;
-            }
-          }
-
           return i;
         }
       }
@@ -95,6 +79,7 @@ int PACKET_QUEUE::check_queue(PACKET *packet) {
                  << " by instr_id: " << entry[i].instr_id << " index: " << i;
             cout << " cycle " << packet->event_cycle << endl;
           });
+          
           return i;
         }
       } else {
@@ -107,14 +92,6 @@ int PACKET_QUEUE::check_queue(PACKET *packet) {
                  << " by instr_id: " << entry[i].instr_id << " index: " << i;
             cout << " cycle " << packet->event_cycle << endl;
           });
-
-          if (packet->type == 2) { // type == PREFETCH
-            if (packet->cpu != entry[i].cpu) {
-              cout << "Merging different cpu packets in LLC"
-                   << "  addr: " << hex << packet->address << dec
-                   << " fill_level: " << packet->fill_level << endl;
-            }
-          }
 
           return i;
         }
