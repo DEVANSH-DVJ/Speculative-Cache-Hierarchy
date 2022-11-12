@@ -98,8 +98,6 @@ void print_roi_stats(uint32_t cpu, CACHE *cache) {
        << "  MERGED: " << setw(10) << cache->PQ.MERGED << endl;
 
   cout << cache->NAME;
-  cout << " LATENESS COUNT: " << setw(10) << cache->lateness_counter
-       << " USEFUL 2: " << cache->pf_useful_2 << endl;
 
 #ifdef NS_INST_PRIORITY
   cout << cache->NAME;
@@ -264,17 +262,11 @@ void reset_cache_stats(uint32_t cpu, CACHE *cache) {
   cache->pf_useless = 0;
   cache->PQ.MERGED = 0;
 
-  cache->lateness_counter = 0;
-  cache->pf_useful_2 = 0;
 
   cache->wq_has_demand_block = 0;
 
 #ifdef NS_INST_PRIORITY
   cache->mshr_spec_buffer_full = 0;
-#endif
-
-#ifdef FNLMMA
-  cache->l1i_prefetcher_warmup_reset();
 #endif
 
   o3_count = 0;
@@ -286,23 +278,6 @@ void reset_cache_stats(uint32_t cpu, CACHE *cache) {
   demand_misses = 0;
   l2c_handle_read = 0;
 
-#ifdef IPCP_PREFETCHER_NEW
-  access_count = 0; //* For IPCP
-  l1d_wq_full = 0;
-
-#ifdef NUM_OFFSETS
-  for (int i = 0; i < NUM_OFFSETS; i++) {
-    IPCP_OFFSET_USEFUL_COUNT[i] = 0;
-    IPCP_OFFSET_USELESS_COUNT[i] = 0;
-    IPCP_OFFSET_ISSUED_COUNT[i] = 0;
-  }
-#endif
-
-  for (int i = 0; i < 6; i++) {
-    cache->pref_useful[NUM_CPUS][i], cache->pref_filled[NUM_CPUS][i],
-        cache->pref_late[NUM_CPUS][i];
-  }
-#endif
   // same_block_addr_count = 0;
   // same_index_same_block = 0;
 
@@ -322,18 +297,7 @@ void reset_cache_stats(uint32_t cpu, CACHE *cache) {
   times_prefetched = 0;
 #endif
 
-  //*FNL+MMA
-  non_spec_fnlmma_call = 0;
-  spec_fnlmma_call = 0;
 
-  //* MSHR FULL
-  mshr_full_l0i = 0;
-  mshr_full_l0d = 0;
-  mshr_full_l1i = 0;
-  mshr_full_l1d = 0;
-  mshr_full_l2c = 0;
-  mshr_full_llc = 0;
-  prefetched_block_hit_mshr_buffer = 0;
 }
 
 void finish_warmup() {
@@ -1737,18 +1701,6 @@ int main(int argc, char **argv) {
     cout << "Percentage of speculative instructions: "
          << (float)(inst_total_loads - inst_non_spec_loads) / inst_total_loads
          << endl;
-
-    cout << endl;
-    cout << "Counts for MSHR Full::" << endl;
-    cout << "L0I: " << mshr_full_l0i << endl;
-    cout << "L0D: " << mshr_full_l0d << endl;
-    cout << "L1I: " << mshr_full_l1i << endl;
-    cout << "L1D: " << mshr_full_l1d << endl;
-    cout << "L2C: " << mshr_full_l2c << endl;
-    cout << "LLC: " << mshr_full_llc << endl;
-
-    cout << "prefetched_block_hit_mshr_buffer: "
-         << prefetched_block_hit_mshr_buffer << endl;
 
     cout << endl;
   }
