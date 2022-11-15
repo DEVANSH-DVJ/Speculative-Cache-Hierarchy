@@ -41,10 +41,3 @@ server_036.champsimtrace.xz
 server_037.champsimtrace.xz
 server_038.champsimtrace.xz
 server_039.champsimtrace.xz
-spec_gcc_001.champsimtrace.xz
-spec_gcc_002.champsimtrace.xz
-spec_gcc_003.champsimtrace.xz
-spec_gobmk_001.champsimtrace.xz
-spec_gobmk_002.champsimtrace.xz
-spec_perlbench_001.champsimtrace.xz
-spec_x264_001.champsimtrace.xz

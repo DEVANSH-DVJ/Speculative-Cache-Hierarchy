@@ -8,8 +8,8 @@ inc = inc
 
 debug = 1
 
-CFlags = -Wall -O3 -std=c++11
-LDFlags =
+CFlags = -Wall -g -std=c++11 -O3 -fno-stack-protector
+LDFlags = -static
 libs =
 libDir =
 

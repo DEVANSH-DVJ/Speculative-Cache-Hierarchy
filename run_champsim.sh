@@ -7,7 +7,7 @@ if [ "$#" -lt 5 ]; then
 fi
 
 #TRACE_DIR=${PWD}/../champsim_traces
-TRACE_DIR=${PWD}/../traces/spec17/
+TRACE_DIR=${PWD}/../../traces/spec17/
 BINARY=${1}
 N_WARM=${2}
 N_SIM=${3}

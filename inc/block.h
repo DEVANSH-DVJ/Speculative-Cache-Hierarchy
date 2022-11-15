@@ -6,114 +6,193 @@
 #include "set.h"
 
 // CACHE BLOCK
-class BLOCK {
+class BLOCK
+{
 public:
-  uint8_t valid, prefetch, dirty, used,
-      committed;   //* L0_SPEC
+    uint8_t valid,
+        prefetch,
+        dirty,
+        used,
+        instruction,
+        translation;
 
+    int delta,
+        depth,
+        signature,
+        confidence,
+        pref_class;
 
-  int delta, depth, signature, confidence, pref_class;
+    uint64_t address,
+        full_addr,
+        tag,
+        data,
+        ip,
+        cpu,
+        instr_id;
 
-  uint64_t address, full_addr, tag, data, ip, cpu, instr_id;
+    // replacement state
+    uint32_t lru;
 
-  // replacement state
-  uint32_t lru;
+    BLOCK()
+    {
+        valid = 0;
+        prefetch = 0;
+        dirty = 0;
+        used = 0;
+        instruction = 0;
+        translation = 0;
 
-  BLOCK() {
-    valid = 0;
-    prefetch = 0;
-    dirty = 0;
-    used = 0;
-    committed = 0;
+        delta = 0;
+        depth = 0;
+        signature = 0;
+        confidence = 0;
+        pref_class = 0;
 
-    delta = 0;
-    depth = 0;
-    signature = 0;
-    confidence = 0;
-    address = 0;
-    full_addr = 0;
-    tag = 0;
-    data = 0;
-    cpu = 0;
-    instr_id = 0;
+        address = 0;
+        full_addr = 0;
+        tag = 0;
+        data = 0;
+        ip = 0;
+        cpu = 0;
+        instr_id = 0;
 
-    lru = 0;
-  };
+        lru = 0;
+    };
 };
 
 // DRAM CACHE BLOCK
-class DRAM_ARRAY {
+class DRAM_ARRAY
+{
 public:
-  BLOCK **block;
+    BLOCK **block;
 
-  DRAM_ARRAY() { block = NULL; };
+    DRAM_ARRAY()
+    {
+        block = NULL;
+    };
 };
 
 // message packet
-class PACKET {
-
+class PACKET
+{
 public:
-  uint8_t instruction, is_data, is_speculative, committed_instruction,
-      committed_data,
-#ifdef L0D_CACHE
-      fill_l0d, fill_l0i,
-#endif
-      fill_l1i, fill_l1d, tlb_access, scheduled, translated, fetched,
-      prefetched, drc_tag_read;
+    uint8_t instruction,
+        is_data,
+        is_speculative,
+        fill_l1i,
+        fill_l1d,
+        tlb_access,
+        scheduled,
+        translated,
+        fetched,
+        prefetched,
+        drc_tag_read,
+        critical_ip_flag; // Neelu: Adding to indicate that current packet's ip has been identified as critical.
 
+    int fill_level,
+        pf_origin_level,
+        rob_signal,
+        rob_index,
+        producer,
+        delta,
+        depth,
+        signature,
+        confidence,
+        late_pref;
 
-  int fill_level, pf_origin_level, rob_signal, rob_index, producer, delta,
-      depth, signature, confidence;
+    uint32_t pf_metadata;
 
-  uint32_t pf_metadata;
+    uint8_t is_producer,
+        // rob_index_depend_on_me[ROB_SIZE],
+        // lq_index_depend_on_me[ROB_SIZE],
+        // sq_index_depend_on_me[ROB_SIZE],
+        instr_merged,
+        load_merged,
+        store_merged,
+        returned,
+        asid[2],
+        type;
 
-  uint8_t is_producer,
-      // rob_index_depend_on_me[ROB_SIZE],
-      // lq_index_depend_on_me[ROB_SIZE],
-      // sq_index_depend_on_me[ROB_SIZE],
-      instr_merged, load_merged, store_merged, returned, asid[2], type;
+    fastset
+        rob_index_depend_on_me,
+        lq_index_depend_on_me,
+        sq_index_depend_on_me;
 
-  fastset rob_index_depend_on_me, lq_index_depend_on_me, sq_index_depend_on_me;
+    //@Vishal: VIPT added for handling transalation merging at L1D
+    // fastset l0_rq_index_depend_on_me,
+    //     l0_wq_index_depend_on_me,
+    //     l0_pq_index_depend_on_me;
+    fastset l1_rq_index_depend_on_me,
+        l1_wq_index_depend_on_me,
+        l1_pq_index_depend_on_me;
+    uint8_t read_translation_merged,
+        write_translation_merged,
+        prefetch_translation_merged;
+    int l1_rq_index, l1_wq_index, l1_pq_index;
+    
+    // @Sumon: no need of these varialbes as the above suffice the purpose. 
+    // We need these variables to keep track of the respective indexes while translation. 
+    // But, naming is misleading, as l1_rq_index is also used to store rq index of L0D,
+    // so a better name would be rq_index, but that is already used in multiple locations, 
+    // so let's stick with l1_rq_index for now.
+    
+    // int l0_rq_index, l0_wq_index, l0_pq_index;
+    uint64_t full_physical_address;
+    bool send_both_tlb;   // For STLB (if true, STLB should return translation to both DTLB and ITLB)
+    bool send_both_cache; // For L2C (if true, L2C should return data to both L1D and L1C)
 
-  uint32_t cpu, data_index, lq_index, sq_index;
+    //@Vishal: PTW
+    uint64_t full_virtual_address;
+    uint8_t translation_level,
+        init_translation_level;
 
-  uint64_t address, full_addr, instruction_pa, data_pa, data, instr_id, ip,
-      event_cycle, cycle_enqueued;
+    uint32_t cpu, data_index, lq_index, sq_index;
 
-  PACKET() {
-    instruction = 0;
-    is_data = 1;
-    is_speculative = 0;
-    committed_instruction = 0;
-    committed_data = 0;
+    uint64_t address,
+        full_addr,
+        instruction_pa,
+        data_pa,
+        data,
+        instr_id,
+        prefetch_id, //@v
+        ip,
+        event_cycle,
+        cycle_enqueued;
 
-#ifdef L0D_CACHE
-    fill_l0d = 0;
-    fill_l0i = 0;
-#endif
+    PACKET()
+    {
+        instruction = 0;
+        is_data = 1;
+        is_speculative = 0;
+        fill_l1i = 0;
+        fill_l1d = 0;
 
-    fill_l1i = 0;
-    fill_l1d = 0;
-    tlb_access = 0;
-    scheduled = 0;
-    translated = 0;
-    fetched = 0;
-    prefetched = 0;
-    drc_tag_read = 0,
+        tlb_access = 0;
+        scheduled = 0;
+        translated = 0;
+        fetched = 0;
+        prefetched = 0;
+        drc_tag_read = 0;
+        send_both_tlb = 0;
+        send_both_cache = 0;
+        late_pref = 0;
 
-    returned = 0;
-    asid[0] = UINT8_MAX;
-    asid[1] = UINT8_MAX;
-    type = 0;
+        pf_metadata = 0;
 
-    fill_level = -1;
-    rob_signal = -1;
-    rob_index = -1;
-    producer = -1;
-    delta = 0;
-    depth = 0;
-    signature = 0;
-    confidence = 0;
+        returned = 0;
+        asid[0] = UINT8_MAX;
+        asid[1] = UINT8_MAX;
+        type = 0;
+
+        fill_level = -1;
+        pf_origin_level = -1;
+        rob_signal = -1;
+        rob_index = -1;
+        producer = -1;
+        delta = 0;
+        depth = 0;
+        signature = 0;
+        confidence = 0;
 
 #if 0
         for (uint32_t i=0; i<ROB_SIZE; i++) {
@@ -122,207 +201,268 @@ public:
             sq_index_depend_on_me[i] = 0;
         }
 #endif
-    is_producer = 0;
-    instr_merged = 0;
-    load_merged = 0;
-    store_merged = 0;
+        is_producer = 0;
+        instr_merged = 0;
+        load_merged = 0;
+        store_merged = 0;
 
-    cpu = NUM_CPUS;
-    data_index = 0;
-    lq_index = 0;
-    sq_index = 0;
+        cpu = NUM_CPUS;
+        data_index = 0;
+        lq_index = 0;
+        sq_index = 0;
 
-    address = 0;
-    full_addr = 0;
-    instruction_pa = 0;
-    data = 0;
-    instr_id = 0;
-    ip = 0;
-    event_cycle = UINT64_MAX;
-    cycle_enqueued = 0;
-  };
+        address = 0;
+        full_addr = 0;
+        instruction_pa = 0;
+        data = 0;
+        instr_id = 0;
+        prefetch_id = 0, //@v
+            ip = 0;
+        event_cycle = UINT64_MAX;
+        cycle_enqueued = 0;
+
+        read_translation_merged = 0;
+        write_translation_merged = 0;
+        prefetch_translation_merged = 0;
+        l1_rq_index = -1;
+        l1_wq_index = -1;
+        l1_pq_index = -1;
+        full_physical_address = 0;
+        send_both_tlb = false;
+    };
 };
 
 // packet queue
-class PACKET_QUEUE {
+class PACKET_QUEUE
+{
 public:
-  string NAME;
-  uint32_t SIZE;
+    string NAME;
+    uint32_t SIZE;
 
-  uint8_t is_RQ, is_WQ, write_mode;
+    uint8_t is_RQ,
+        is_WQ,
+        write_mode;
 
-  uint32_t cpu, head, tail, occupancy, num_returned, next_fill_index,
-      next_schedule_index, next_process_index;
+    uint32_t cpu,
+        head,
+        tail,
+        occupancy,
+        num_returned,
+        next_fill_index,
+        next_schedule_index,
+        next_process_index;
 
-  uint64_t next_fill_cycle, next_schedule_cycle, next_process_cycle, ACCESS,
-      FORWARD, MERGED, TO_CACHE, ROW_BUFFER_HIT, ROW_BUFFER_MISS, FULL;
+    uint64_t next_fill_cycle,
+        next_schedule_cycle,
+        next_process_cycle,
+        ACCESS,
+        FORWARD,
+        MERGED,
+        TO_CACHE,
+        ROW_BUFFER_HIT,
+        ROW_BUFFER_MISS,
+        FULL;
 
-  PACKET *entry, processed_packet[2 * MAX_READ_PER_CYCLE];
+    PACKET *entry, processed_packet[2 * MAX_READ_PER_CYCLE];
 
-  // constructor
-  PACKET_QUEUE(string v1, uint32_t v2) : NAME(v1), SIZE(v2) {
-    is_RQ = 0;
-    is_WQ = 0;
-    write_mode = 0;
+    // constructor
+    PACKET_QUEUE(string v1, uint32_t v2) : NAME(v1), SIZE(v2)
+    {
+        is_RQ = 0;
+        is_WQ = 0;
+        write_mode = 0;
 
-    cpu = 0;
-    head = 0;
-    tail = 0;
-    occupancy = 0;
-    num_returned = 0;
-    next_fill_index = 0;
-    next_schedule_index = 0;
-    next_process_index = 0;
+        cpu = 0;
+        head = 0;
+        tail = 0;
+        occupancy = 0;
+        num_returned = 0;
+        next_fill_index = 0;
+        next_schedule_index = 0;
+        next_process_index = 0;
 
-    next_fill_cycle = UINT64_MAX;
-    next_schedule_cycle = UINT64_MAX;
-    next_process_cycle = UINT64_MAX;
+        next_fill_cycle = UINT64_MAX;
+        next_schedule_cycle = UINT64_MAX;
+        next_process_cycle = UINT64_MAX;
 
-    ACCESS = 0;
-    FORWARD = 0;
-    MERGED = 0;
-    TO_CACHE = 0;
-    ROW_BUFFER_HIT = 0;
-    ROW_BUFFER_MISS = 0;
-    FULL = 0;
+        ACCESS = 0;
+        FORWARD = 0;
+        MERGED = 0;
+        TO_CACHE = 0;
+        ROW_BUFFER_HIT = 0;
+        ROW_BUFFER_MISS = 0;
+        FULL = 0;
 
-    entry = new PACKET[SIZE];
-  };
+        entry = new PACKET[SIZE];
+    };
 
-  PACKET_QUEUE() {
-    is_RQ = 0;
-    is_WQ = 0;
+    PACKET_QUEUE()
+    {
+        is_RQ = 0;
+        is_WQ = 0;
 
-    cpu = 0;
-    head = 0;
-    tail = 0;
-    occupancy = 0;
-    num_returned = 0;
-    next_fill_index = 0;
-    next_schedule_index = 0;
-    next_process_index = 0;
+        cpu = 0;
+        head = 0;
+        tail = 0;
+        occupancy = 0;
+        num_returned = 0;
+        next_fill_index = 0;
+        next_schedule_index = 0;
+        next_process_index = 0;
 
-    next_fill_cycle = UINT64_MAX;
-    next_schedule_cycle = UINT64_MAX;
-    next_process_cycle = UINT64_MAX;
+        next_fill_cycle = UINT64_MAX;
+        next_schedule_cycle = UINT64_MAX;
+        next_process_cycle = UINT64_MAX;
 
-    ACCESS = 0;
-    FORWARD = 0;
-    MERGED = 0;
-    TO_CACHE = 0;
-    ROW_BUFFER_HIT = 0;
-    ROW_BUFFER_MISS = 0;
-    FULL = 0;
+        ACCESS = 0;
+        FORWARD = 0;
+        MERGED = 0;
+        TO_CACHE = 0;
+        ROW_BUFFER_HIT = 0;
+        ROW_BUFFER_MISS = 0;
+        FULL = 0;
 
-    // entry = new PACKET[SIZE];
-  };
+        // entry = new PACKET[SIZE];
+    };
 
-  // destructor
-  ~PACKET_QUEUE() { delete[] entry; };
+    // destructor
+    ~PACKET_QUEUE()
+    {
+        delete[] entry;
+    };
 
-  // functions
-  int check_queue(PACKET *packet);
-  void add_queue(PACKET *packet), remove_queue(PACKET *packet);
+    // functions
+    int check_queue(PACKET *packet);
+    void add_queue(PACKET *packet),
+        remove_queue(PACKET *packet);
 };
 
 // reorder buffer
-class CORE_BUFFER {
+class CORE_BUFFER
+{
 public:
-  const string NAME;
-  const uint32_t SIZE;
-  uint32_t cpu, head, tail, occupancy, last_read, last_fetch, last_scheduled,
-      inorder_fetch[2], next_fetch[2], next_schedule;
+    const string NAME;
+    const uint32_t SIZE;
+    uint32_t cpu,
+        head,
+        tail,
+        occupancy,
+        last_read, last_fetch, last_scheduled,
+        inorder_fetch[2],
+        next_fetch[2],
+        next_schedule;
+    uint64_t event_cycle,
+        fetch_event_cycle,
+        schedule_event_cycle,
+        execute_event_cycle,
+        lsq_event_cycle,
+        retire_event_cycle;
 
-  uint64_t event_cycle, fetch_event_cycle, schedule_event_cycle,
-      execute_event_cycle, lsq_event_cycle, retire_event_cycle;
+    ooo_model_instr *entry;
 
-  ooo_model_instr *entry;
+    // constructor
+    CORE_BUFFER(string v1, uint32_t v2) : NAME(v1), SIZE(v2)
+    {
+        head = 0;
+        tail = 0;
+        occupancy = 0;
 
-  // constructor
-  CORE_BUFFER(string v1, uint32_t v2) : NAME(v1), SIZE(v2) {
-    head = 0;
-    tail = 0;
-    occupancy = 0;
+        last_read = SIZE - 1;
+        last_fetch = SIZE - 1;
+        last_scheduled = 0;
 
-    last_read = SIZE - 1;
-    last_fetch = SIZE - 1;
-    last_scheduled = 0;
+        inorder_fetch[0] = 0;
+        inorder_fetch[1] = 0;
+        next_fetch[0] = 0;
+        next_fetch[1] = 0;
+        next_schedule = 0;
 
-    inorder_fetch[0] = 0;
-    inorder_fetch[1] = 0;
-    next_fetch[0] = 0;
-    next_fetch[1] = 0;
-    next_schedule = 0;
+        event_cycle = 0;
+        fetch_event_cycle = UINT64_MAX;
+        schedule_event_cycle = UINT64_MAX;
+        execute_event_cycle = UINT64_MAX;
+        lsq_event_cycle = UINT64_MAX;
+        retire_event_cycle = UINT64_MAX;
 
-    event_cycle = 0;
-    fetch_event_cycle = UINT64_MAX;
-    schedule_event_cycle = UINT64_MAX;
-    execute_event_cycle = UINT64_MAX;
-    lsq_event_cycle = UINT64_MAX;
-    retire_event_cycle = UINT64_MAX;
+        entry = new ooo_model_instr[SIZE];
+    };
 
-    entry = new ooo_model_instr[SIZE];
-  };
-
-  // destructor
-  ~CORE_BUFFER() { delete[] entry; };
+    // destructor
+    ~CORE_BUFFER()
+    {
+        delete[] entry;
+    };
 };
 
 // load/store queue
-class LSQ_ENTRY {
+class LSQ_ENTRY
+{
 public:
-  uint64_t instr_id, producer_id, virtual_address, physical_address, ip,
-      event_cycle;
+    uint64_t instr_id,
+        producer_id,
+        virtual_address,
+        physical_address,
+        ip,
+        event_cycle;
 
-  uint32_t rob_index, data_index, sq_index;
+    uint32_t rob_index, data_index, sq_index;
 
-  uint8_t translated, fetched, asid[2];
-  // forwarding_depend_on_me[ROB_SIZE];
-  fastset forwarding_depend_on_me;
+    uint8_t translated,
+        fetched,
+        asid[2];
+    // forwarding_depend_on_me[ROB_SIZE];
+    fastset
+        forwarding_depend_on_me;
 
-  // constructor
-  LSQ_ENTRY() {
-    instr_id = 0;
-    producer_id = UINT64_MAX;
-    virtual_address = 0;
-    physical_address = 0;
-    ip = 0;
-    event_cycle = 0;
+    // constructor
+    LSQ_ENTRY()
+    {
+        instr_id = 0;
+        producer_id = UINT64_MAX;
+        virtual_address = 0;
+        physical_address = 0;
+        ip = 0;
+        event_cycle = 0;
 
-    rob_index = 0;
-    data_index = 0;
-    sq_index = UINT32_MAX;
+        rob_index = 0;
+        data_index = 0;
+        sq_index = UINT32_MAX;
 
-    translated = 0;
-    fetched = 0;
-    asid[0] = UINT8_MAX;
-    asid[1] = UINT8_MAX;
+        translated = 0;
+        fetched = 0;
+        asid[0] = UINT8_MAX;
+        asid[1] = UINT8_MAX;
 
 #if 0
         for (uint32_t i=0; i<ROB_SIZE; i++)
             forwarding_depend_on_me[i] = 0;
 #endif
-  };
+    };
 };
 
-class LOAD_STORE_QUEUE {
+class LOAD_STORE_QUEUE
+{
 public:
-  const string NAME;
-  const uint32_t SIZE;
-  uint32_t occupancy, head, tail;
+    const string NAME;
+    const uint32_t SIZE;
+    uint32_t occupancy, head, tail;
 
-  LSQ_ENTRY *entry;
+    LSQ_ENTRY *entry;
 
-  // constructor
-  LOAD_STORE_QUEUE(string v1, uint32_t v2) : NAME(v1), SIZE(v2) {
-    occupancy = 0;
-    head = 0;
-    tail = 0;
+    // constructor
+    LOAD_STORE_QUEUE(string v1, uint32_t v2) : NAME(v1), SIZE(v2)
+    {
+        occupancy = 0;
+        head = 0;
+        tail = 0;
 
-    entry = new LSQ_ENTRY[SIZE];
-  };
+        entry = new LSQ_ENTRY[SIZE];
+    };
 
-  // destructor
-  ~LOAD_STORE_QUEUE() { delete[] entry; };
+    // destructor
+    ~LOAD_STORE_QUEUE()
+    {
+        delete[] entry;
+    };
 };
 #endif
