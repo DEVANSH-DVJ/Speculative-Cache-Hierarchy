@@ -1,0 +1,3 @@
+ooo_cp.h, uncore.h modified with all three types
+
+cache.h modified, but need to define the functions for the modifications

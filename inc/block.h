@@ -14,7 +14,8 @@ public:
         dirty,
         used,
         instruction,
-        translation;
+        translation,
+        is_speculative;
 
     int delta,
         depth,
@@ -28,7 +29,8 @@ public:
         data,
         ip,
         cpu,
-        instr_id;
+        instr_id,
+        timestamp;
 
     // replacement state
     uint32_t lru;
@@ -55,6 +57,10 @@ public:
         ip = 0;
         cpu = 0;
         instr_id = 0;
+        
+        //@Aman - adding is_speclative bit and timestamp for each block 
+        is_speculative = 0;
+        timestamp = 0;
 
         lru = 0;
     };

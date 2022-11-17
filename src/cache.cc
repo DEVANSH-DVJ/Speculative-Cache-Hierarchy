@@ -412,7 +412,7 @@ void CACHE::handle_fill()
                 {
                     PACKET writeback_packet;
 
-                    //@Sumon doubt: should we send PA from L1D to L2C? What about L0D?
+                    //@Sumon doubt: should we send PA from L1D to L2C? What about L1DT?
                     writeback_packet.fill_level = (fill_level == 0) ? 1 : fill_level << 1;
                     writeback_packet.cpu = fill_cpu;
                     writeback_packet.address = block[set][way].address;
@@ -555,7 +555,7 @@ void CACHE::handle_fill()
             }
 #endif
             // RFO marks cache line dirty
-            if (cache_type == IS_L0D)
+            if (cache_type == IS_L1DT)
             {
                 if (MSHR.entry[mshr_index].type == RFO)
                     block[set][way].dirty = 1;
@@ -700,7 +700,7 @@ void CACHE::handle_fill()
                 if (PROCESSED.occupancy < PROCESSED.SIZE)
                     PROCESSED.add_queue(&MSHR.entry[mshr_index]);
             }
-            else if ((cache_type == IS_L0D) && (MSHR.entry[mshr_index].type != PREFETCH))
+            else if ((cache_type == IS_L1DT) && (MSHR.entry[mshr_index].type != PREFETCH))
             {
 #ifndef PRACTICAL_PERFECT_L1D
                 if (PROCESSED.occupancy < PROCESSED.SIZE) // Neelu: Commenting for ideal L1 prefetcher i.e. not sending to processed queue
@@ -735,7 +735,7 @@ void CACHE::handle_writeback()
 
     assert(cache_type != IS_L1I || cache_type != IS_STLB); //@Vishal: TLB should not generate write packets
 
-    if (cache_type == IS_L1D || cache_type == IS_L0D) // Get completed index in WQ, as it is non-fifo
+    if (cache_type == IS_L1D || cache_type == IS_L1DT) // Get completed index in WQ, as it is non-fifo
     {
         for (uint32_t wq_index = 0; wq_index < WQ.SIZE; wq_index++)
         {
@@ -749,10 +749,10 @@ void CACHE::handle_writeback()
     }
     auto writes_ready_it = writes_ready.begin();
 
-    if ((cache_type == IS_L1D || cache_type == IS_L0D) && writes_ready.size() == 0)
+    if ((cache_type == IS_L1D || cache_type == IS_L1DT) && writes_ready.size() == 0)
         return;
 
-    if (cache_type == IS_L1D || cache_type == IS_L0D)
+    if (cache_type == IS_L1D || cache_type == IS_L1DT)
         WQ.head = writes_ready_it->second; //@Vishal: L1 WQ is non fifo, so head variable is set to next index to be read
 
     // handle write
@@ -818,7 +818,7 @@ void CACHE::handle_writeback()
 #endif
 
         if (way >= 0)
-        { // writeback hit (or RFO hit for L0D)
+        { // writeback hit (or RFO hit for L1DT)
 
             (this->*update_replacement_state)(writeback_cpu, set, way, block[set][way].full_addr, WQ.entry[index].ip, 0, WQ.entry[index].type, 1);
 
@@ -874,7 +874,7 @@ void CACHE::handle_writeback()
             WQ.remove_queue(&WQ.entry[index]);
         }
         else
-        { // writeback miss (or RFO miss for L0D)
+        { // writeback miss (or RFO miss for L1DT)
 
             DP(if (warmup_complete[writeback_cpu]) {
                     cout << "[" << NAME << "] " << __func__ << " type: " << +WQ.entry[index].type << " miss";
@@ -889,7 +889,7 @@ void CACHE::handle_writeback()
             //         cout << " full_addr: " << WQ.entry[index].full_addr << dec;
             //         cout << " cycle: " << WQ.entry[index].event_cycle << endl; }
 
-            if (cache_type == IS_L0D)
+            if (cache_type == IS_L1DT)
             { // RFO miss
 
                 // check mshr
@@ -921,7 +921,7 @@ void CACHE::handle_writeback()
                     add_nonfifo_queue(&MSHR, &new_packet); //@Vishal: Updated from add_mshr
 
                     // add it to the next level's read queue
-                    // if (lower_level) // L0D always has a lower level cache
+                    // if (lower_level) // L1DT always has a lower level cache
                     lower_level->add_rq(&new_packet);
                 }
                 else
@@ -937,7 +937,7 @@ void CACHE::handle_writeback()
                     { // already in-flight miss
 
                         // update fill_level
-                        // this condition should never occur as packet is already in L0D's MSHR which is the highest fill level.
+                        // this condition should never occur as packet is already in L1DT's MSHR which is the highest fill level.
                         if (WQ.entry[index].fill_level < MSHR.entry[mshr_index].fill_level)
                             MSHR.entry[mshr_index].fill_level = WQ.entry[index].fill_level;
 
@@ -953,7 +953,7 @@ void CACHE::handle_writeback()
                         // update request
                         if (MSHR.entry[mshr_index].type == PREFETCH)
                         {
-                            //@Sumon doubt : L0D does not prefetch
+                            //@Sumon doubt : L1DT does not prefetch
                             assert(0);
                             uint8_t prior_returned = MSHR.entry[mshr_index].returned;
                             uint64_t prior_event_cycle = MSHR.entry[mshr_index].event_cycle;
@@ -966,7 +966,7 @@ void CACHE::handle_writeback()
 
                             //@Vishal: L1 RQ has virtual address, but miss needs to track physical address, so prior addresses are kept
                             //@Sumon: not sure why this is done, I guess I have to do it for L1D also
-                            if (cache_type == IS_L0D)
+                            if (cache_type == IS_L1DT)
                             {
                                 MSHR.entry[mshr_index].address = prior_address;
                                 MSHR.entry[mshr_index].full_addr = prior_full_addr;
@@ -1175,7 +1175,7 @@ void CACHE::handle_writeback()
 //@Vishal: Translation coming from TLB to L1 cache
 void CACHE::handle_processed()
 {
-    assert(cache_type == IS_L1I || cache_type == IS_L0D);
+    assert(cache_type == IS_L1I || cache_type == IS_L1DT);
 
     CACHE &tlb = cache_type == IS_L1I ? ooo_cpu[cpu].ITLB : ooo_cpu[cpu].DTLB;
 
@@ -1473,7 +1473,7 @@ void CACHE::handle_read()
 
     multimap<uint64_t, uint32_t> reads_ready; //{cycle_time,index}
 
-    if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L0D) // Get completed index in RQ, as it is non-fifo
+    if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L1DT) // Get completed index in RQ, as it is non-fifo
     {
         for (uint32_t rq_index = 0; rq_index < RQ.SIZE; rq_index++)
             if (RQ.entry[rq_index].translated == COMPLETED && (RQ.entry[rq_index].event_cycle <= current_core_cycle[cpu]))
@@ -1481,7 +1481,7 @@ void CACHE::handle_read()
     }
     auto reads_ready_it = reads_ready.begin();
 
-    if ((cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L0D) && reads_ready.size() == 0)
+    if ((cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L1DT) && reads_ready.size() == 0)
         return;
 
     // handle read
@@ -1489,7 +1489,7 @@ void CACHE::handle_read()
     for (uint32_t i = 0; i < MAX_READ; i++)
     {
 
-        if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L0D)
+        if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L1DT)
         {
             if (reads_ready_it == reads_ready.end())
                 return;
@@ -1736,7 +1736,7 @@ void CACHE::handle_read()
                         PROCESSED.add_queue(&RQ.entry[index]);
                 }
                 // else if (cache_type == IS_L1D) {
-                else if ((cache_type == IS_L0D) && (RQ.entry[index].type != PREFETCH))
+                else if ((cache_type == IS_L1DT) && (RQ.entry[index].type != PREFETCH))
                 {
                     if (PROCESSED.occupancy < PROCESSED.SIZE)
                         PROCESSED.add_queue(&RQ.entry[index]);
@@ -1878,7 +1878,7 @@ void CACHE::handle_read()
                     }
                     else
                     {
-                        //@Sumon: I think there is no need of an extra condition for L1D, this will take care of returning data to L0D
+                        //@Sumon: I think there is no need of an extra condition for L1D, this will take care of returning data to L1DT
                         if (RQ.entry[index].instruction)
                         {
                             RQ.entry[index].data = block[set][way].data;
@@ -1972,7 +1972,7 @@ void CACHE::handle_read()
                     else
                     {
 
-                        if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L0D) //@Vishal: VIPT
+                        if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L1DT) //@Vishal: VIPT
                         {
                             assert(RQ.entry[index].full_physical_address != 0);
                             // Neelu: Added to processed queue even on miss for ideal L1 prefetcher, comment if not needed.
@@ -1985,8 +1985,8 @@ void CACHE::handle_read()
 #endif
                             PACKET new_packet = RQ.entry[index];
                             //@Vishal: Send physical address to lower level and track physical address in MSHR
-                            //@Sumon: send virtual address from L0D to L1D, which ensures L1D is VIPT
-                            if (cache_type == IS_L0D)
+                            //@Sumon: send virtual address from L1DT to L1D, which ensures L1D is VIPT
+                            if (cache_type == IS_L1DT)
                             {
                                 new_packet.address = RQ.entry[index].full_virtual_address >> LOG2_BLOCK_SIZE;
                                 new_packet.full_addr = RQ.entry[index].full_virtual_address;
@@ -2314,7 +2314,7 @@ void CACHE::handle_read()
                             // assert(cache_type != IS_L1I);//@Vishal: L1I cache does not generate prefetch packet.
 
                             //@Vishal: L1 RQ has virtual address, but miss needs to track physical address, so prior addresses are kept
-                            if (cache_type == IS_L1D || cache_type == IS_L1I || cache_type == IS_L0D)
+                            if (cache_type == IS_L1D || cache_type == IS_L1I || cache_type == IS_L1DT)
                             {
                                 MSHR.entry[mshr_index].address = prior_address;
                                 MSHR.entry[mshr_index].full_addr = prior_full_addr;
@@ -2927,7 +2927,7 @@ void CACHE::operate()
     reads_available_this_cycle = MAX_READ;
 
     //@Vishal: VIPT
-    if (cache_type == IS_L1I || cache_type == IS_L0D)
+    if (cache_type == IS_L1I || cache_type == IS_L1DT)
         handle_processed();
     handle_read();
 
@@ -3070,7 +3070,7 @@ void CACHE::fill_cache(uint32_t set, uint32_t way, PACKET *packet)
     block[set][way].confidence = packet->confidence;
 
     //@Sumon: major bug
-    if(cache_type == IS_L0D)
+    if(cache_type == IS_L1DT)
     {
         packet->address = packet->full_physical_address >> LOG2_BLOCK_SIZE;
         packet->full_addr = packet->full_physical_address;
@@ -3109,8 +3109,8 @@ int CACHE::check_hit(PACKET *packet)
 
     uint64_t packet_tag;
     //WQ_debug function
-    // if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L0D) //@Vishal: VIPT
-    if (cache_type == IS_L1I || cache_type == IS_L0D) //@Vishal: VIPT
+    // if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L1DT) //@Vishal: VIPT
+    if (cache_type == IS_L1I || cache_type == IS_L1DT) //@Vishal: VIPT
     {
         assert(packet->full_physical_address != 0);
         packet_tag = packet->full_physical_address >> LOG2_BLOCK_SIZE;
@@ -3203,7 +3203,7 @@ int CACHE::add_rq(PACKET *packet)
     // @Vishal: WQ is non-fifo for L1 cache
 
     int wq_index;
-    if (cache_type == IS_L1D || cache_type == IS_L1I || cache_type == IS_L0D)
+    if (cache_type == IS_L1D || cache_type == IS_L1I || cache_type == IS_L1DT)
         wq_index = check_nonfifo_queue(&WQ, packet, false);
     else
         wq_index = WQ.check_queue(packet);
@@ -3261,7 +3261,7 @@ int CACHE::add_rq(PACKET *packet)
             assert(0);
 #endif
         // update processed packets
-        if ((cache_type == IS_L0D) && (packet->type != PREFETCH))
+        if ((cache_type == IS_L1DT) && (packet->type != PREFETCH))
         {
             if (PROCESSED.occupancy < PROCESSED.SIZE)
                 PROCESSED.add_queue(packet);
@@ -3287,7 +3287,7 @@ int CACHE::add_rq(PACKET *packet)
     // @Vishal: RQ is non-fifo for L1 cache
 
     int index;
-    if (cache_type == IS_L1D || cache_type == IS_L1I || cache_type == IS_L0D)
+    if (cache_type == IS_L1D || cache_type == IS_L1I || cache_type == IS_L1DT)
         index = check_nonfifo_queue(&RQ, packet, false);
     else
         index = RQ.check_queue(packet);
@@ -3512,7 +3512,7 @@ int CACHE::add_rq(PACKET *packet)
     index = RQ.tail;
 
     //@Vishal: Since L1 RQ is non fifo, find empty index
-    if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L0D)
+    if (cache_type == IS_L1I || cache_type == IS_L1D || cache_type == IS_L1DT)
     {
         for (uint i = 0; i < RQ.SIZE; i++)
             if (RQ.entry[i].address == 0)
@@ -3523,7 +3523,7 @@ int CACHE::add_rq(PACKET *packet)
     }
 
     //@Vishal: Check if pending translation sent to TLB
-    if (cache_type == IS_L1I || cache_type == IS_L0D)
+    if (cache_type == IS_L1I || cache_type == IS_L1DT)
     {
 
         if (cache_type == IS_L1I) // TODO: Check if extra interface can be used here?
@@ -3587,7 +3587,7 @@ int CACHE::add_rq(PACKET *packet)
     else
         RQ.entry[index].event_cycle += LATENCY;
 
-    if (cache_type == IS_L1I || cache_type == IS_L0D)
+    if (cache_type == IS_L1I || cache_type == IS_L1DT)
     {
         RQ.entry[index].translated = INFLIGHT;
     }
@@ -3641,7 +3641,7 @@ int CACHE::add_wq(PACKET *packet)
 
     // check for duplicates in the write queue
     int index;
-    if (cache_type == IS_L1D || cache_type == IS_L0D)
+    if (cache_type == IS_L1D || cache_type == IS_L1DT)
         index = check_nonfifo_queue(&WQ, packet, false);
     else
         index = WQ.check_queue(packet);
@@ -3673,7 +3673,7 @@ int CACHE::add_wq(PACKET *packet)
     index = WQ.tail;
 
     //@Vishal: Since L1 WQ is non fifo, find empty index
-    if (cache_type == IS_L1D || cache_type == IS_L0D)
+    if (cache_type == IS_L1D || cache_type == IS_L1DT)
     {
         for (uint i = 0; i < WQ.SIZE; i++)
             if (WQ.entry[i].address == 0)
@@ -3684,8 +3684,8 @@ int CACHE::add_wq(PACKET *packet)
     }
 
     //@Vishal: Check if pending translation sent to TLB
-    //@Sumon: Translation sent from L0D instead of L1D
-    if (cache_type == IS_L0D)
+    //@Sumon: Translation sent from L1DT instead of L1D
+    if (cache_type == IS_L1DT)
     {
 
         if (ooo_cpu[packet->cpu].DTLB.RQ.occupancy == ooo_cpu[packet->cpu].DTLB.RQ.SIZE)
@@ -3722,7 +3722,7 @@ int CACHE::add_wq(PACKET *packet)
     else
         WQ.entry[index].event_cycle += LATENCY;
 
-    if (cache_type == IS_L0D)
+    if (cache_type == IS_L1DT)
         WQ.entry[index].translated = INFLIGHT;
 
     WQ.occupancy++;
@@ -4366,7 +4366,7 @@ int CACHE::check_nonfifo_queue(PACKET_QUEUE *queue, PACKET *packet, bool packet_
 {
     uint64_t check_address = packet->address;
 
-    if (packet_direction && cache_type == IS_L0D)
+    if (packet_direction && cache_type == IS_L1DT)
     {
         check_address = packet->full_virtual_address >> LOG2_BLOCK_SIZE;
     }
@@ -4384,13 +4384,13 @@ int CACHE::check_nonfifo_queue(PACKET_QUEUE *queue, PACKET *packet, bool packet_
     }
 
     //@Sumon: major bug solved, took 3 days to identify. Use debug prints, pin point particular instructions
-    if (!packet_direction && (cache_type == IS_L0D) && queue->NAME.compare(NAME + "_MSHR") == 0)
+    if (!packet_direction && (cache_type == IS_L1DT) && queue->NAME.compare(NAME + "_MSHR") == 0)
     {
         check_address = packet->full_virtual_address >> LOG2_BLOCK_SIZE; //@Vishal: L0 MSHR has virtual address
     }
 
 
-    if ((cache_type == IS_L1D || cache_type == IS_L0D) && queue->NAME.compare(NAME + "_WQ") == 0)
+    if ((cache_type == IS_L1D || cache_type == IS_L1DT) && queue->NAME.compare(NAME + "_WQ") == 0)
     {
         // search queue
         for (uint32_t index = 0; index < queue->SIZE; index++)

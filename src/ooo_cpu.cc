@@ -2207,7 +2207,7 @@ void O3_CPU::execute_store(uint32_t rob_index, uint32_t sq_index, uint32_t data_
 
 int O3_CPU::execute_load(uint32_t rob_index, uint32_t lq_index, uint32_t data_index)
 {
-    //@Sumon: add it to L0D
+    //@Sumon: add it to L1DT
     PACKET data_packet;
     data_packet.fill_level = FILL_L0;
     data_packet.fill_l1d = 1;
@@ -2226,13 +2226,13 @@ int O3_CPU::execute_load(uint32_t rob_index, uint32_t lq_index, uint32_t data_in
     data_packet.rob_index = LQ.entry[lq_index].rob_index;
     data_packet.ip = LQ.entry[lq_index].ip;
 
-    //@Sumon: ToDo: if instruction is speculative, mark as speculative LOAD and put it in L0D otherwise L1D
+    //@Sumon: ToDo: if instruction is speculative, mark as speculative LOAD and put it in L1DT otherwise L1D
     data_packet.type = LOAD;
     data_packet.asid[0] = LQ.entry[lq_index].asid[0];
     data_packet.asid[1] = LQ.entry[lq_index].asid[1];
     data_packet.event_cycle = LQ.entry[lq_index].event_cycle;
 
-    int rq_index = L0D.add_rq(&data_packet);
+    int rq_index = L1DT.add_rq(&data_packet);
 
     if (rq_index == -2)
         return rq_index;
@@ -2393,8 +2393,9 @@ void O3_CPU::operate_cache()
     PTW.operate();
 #endif
     L1I.operate();
-    L0D.operate();
+    L1DT.operate();
     L1D.operate();
+    L2CT.operate();
     L2C.operate();
 
     // also handle per-cycle prefetcher operation
@@ -2414,8 +2415,8 @@ void O3_CPU::update_rob()
     // if (DTLB.PROCESSED.occupancy && (DTLB.PROCESSED.entry[DTLB.PROCESSED.head].event_cycle <= current_core_cycle[cpu]))
     //    complete_data_fetch(&DTLB.PROCESSED, 1);
 
-    if (L0D.PROCESSED.occupancy && (L0D.PROCESSED.entry[L0D.PROCESSED.head].event_cycle <= current_core_cycle[cpu]))
-        complete_data_fetch(&L0D.PROCESSED, 0);
+    if (L1DT.PROCESSED.occupancy && (L1DT.PROCESSED.entry[L1DT.PROCESSED.head].event_cycle <= current_core_cycle[cpu]))
+        complete_data_fetch(&L1DT.PROCESSED, 0);
 
     // update ROB entries with completed executions
     if ((inflight_reg_executions > 0) || (inflight_mem_executions > 0))
@@ -2852,7 +2853,7 @@ void O3_CPU::retire_rob()
 
         if (num_store)
         {
-            if ((L0D.WQ.occupancy + num_store) <= L0D.WQ.SIZE)
+            if ((L1DT.WQ.occupancy + num_store) <= L1DT.WQ.SIZE)
             {
                 for (uint32_t i = 0; i < MAX_INSTR_DESTINATIONS; i++)
                 {
@@ -2865,7 +2866,7 @@ void O3_CPU::retire_rob()
                         // sq_index and rob_index are no longer available after retirement
                         // but we pass this information to avoid segmentation fault
 
-                        //@Sumon: add to L0D
+                        //@Sumon: add to L1DT
                         data_packet.fill_level = FILL_L0;
                         // data_packet.fill_l1d = 1;
                         data_packet.cpu = cpu;
@@ -2888,7 +2889,7 @@ void O3_CPU::retire_rob()
                         data_packet.asid[1] = SQ.entry[sq_index].asid[1];
                         data_packet.event_cycle = current_core_cycle[cpu];
 
-                        L0D.add_wq(&data_packet);
+                        L1DT.add_wq(&data_packet);
 
                         sim_store_sent++;
                     }
@@ -2899,8 +2900,8 @@ void O3_CPU::retire_rob()
                 // DP ( if (warmup_complete[cpu]) {
                 // cout << "[ROB] " << __func__ << " instr_id: " << ROB.entry[ROB.head].instr_id << " L1D WQ is full" << endl; });
 
-                L0D.WQ.FULL++;
-                L0D.STALL[RFO]++;
+                L1DT.WQ.FULL++;
+                L1DT.STALL[RFO]++;
 
                 return;
             }

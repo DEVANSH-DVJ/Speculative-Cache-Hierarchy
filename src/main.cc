@@ -520,7 +520,7 @@ void finish_warmup()
         reset_cache_stats(i, &ooo_cpu[i].DTLB);
         reset_cache_stats(i, &ooo_cpu[i].STLB);
         reset_cache_stats(i, &ooo_cpu[i].L1I);
-        reset_cache_stats(i, &ooo_cpu[i].L0D);
+        reset_cache_stats(i, &ooo_cpu[i].L1DT);
         reset_cache_stats(i, &ooo_cpu[i].L1D);
         reset_cache_stats(i, &ooo_cpu[i].L2C);
         reset_cache_stats(i, &uncore.LLC);
@@ -553,7 +553,7 @@ void finish_warmup()
         ooo_cpu[i].DTLB.LATENCY = DTLB_LATENCY;
         ooo_cpu[i].STLB.LATENCY = STLB_LATENCY;
         ooo_cpu[i].L1I.LATENCY = L1I_LATENCY;
-        ooo_cpu[i].L0D.LATENCY  = L1D_LATENCY;
+        ooo_cpu[i].L1DT.LATENCY  = L1D_LATENCY;
         ooo_cpu[i].L1D.LATENCY = L1D_LATENCY;
         ooo_cpu[i].L2C.LATENCY = L2C_LATENCY;
     }
@@ -589,7 +589,7 @@ void print_deadlock(uint32_t i)
 
     // print L1D MSHR entry
     PACKET_QUEUE *queue;
-    queue = &ooo_cpu[i].L0D.MSHR;
+    queue = &ooo_cpu[i].L1DT.MSHR;
     cout << endl
          << queue->NAME << " Entry" << endl;
     for (uint32_t j = 0; j < queue->SIZE; j++)
@@ -619,7 +619,7 @@ void print_deadlock(uint32_t i)
         cout << " fill_level: " << queue->entry[j].fill_level << " lq_index: " << queue->entry[j].lq_index << " sq_index: " << queue->entry[j].sq_index << endl;
     }
 
-    queue = &ooo_cpu[i].L0D.WQ;
+    queue = &ooo_cpu[i].L1DT.WQ;
     cout << endl
          << queue->NAME << " Entry " << endl;
     for (uint32_t j = 0; j < queue->SIZE; j++)
@@ -1399,26 +1399,26 @@ int main(int argc, char **argv)
         ooo_cpu[i].L1I.replacement_final_stats = &CACHE::l1i_replacement_final_stats;
         (ooo_cpu[i].L1I.*(ooo_cpu[i].L1I.initialize_replacement))();
         
-        //@Sumon: L0D
-        ooo_cpu[i].L0D.cpu = i;
-        ooo_cpu[i].L0D.cache_type = IS_L0D;
-        ooo_cpu[i].L0D.MAX_READ = (2 > MAX_READ_PER_CYCLE) ? MAX_READ_PER_CYCLE : 2;
-        ooo_cpu[i].L0D.fill_level = FILL_L0;
-        ooo_cpu[i].L0D.lower_level = &ooo_cpu[i].L1D; 
-        // ooo_cpu[i].L0D.l0d_prefetcher_initialize();
+        //@Sumon: L1DT
+        ooo_cpu[i].L1DT.cpu = i;
+        ooo_cpu[i].L1DT.cache_type = IS_L1DT;
+        ooo_cpu[i].L1DT.MAX_READ = (2 > MAX_READ_PER_CYCLE) ? MAX_READ_PER_CYCLE : 2;
+        ooo_cpu[i].L1DT.fill_level = FILL_L0;
+        ooo_cpu[i].L1DT.lower_level = &ooo_cpu[i].L1D; 
+        // ooo_cpu[i].L1DT.L1DT_prefetcher_initialize();
 
-        ooo_cpu[i].L0D.initialize_replacement = &CACHE::l0d_initialize_replacement;
-        ooo_cpu[i].L0D.update_replacement_state = &CACHE::l0d_update_replacement_state;
-        ooo_cpu[i].L0D.find_victim = &CACHE::l0d_find_victim;
-        ooo_cpu[i].L0D.replacement_final_stats = &CACHE::l0d_replacement_final_stats;
-        (ooo_cpu[i].L0D.*(ooo_cpu[i].L0D.initialize_replacement))();
+        ooo_cpu[i].L1DT.initialize_replacement = &CACHE::L1DT_initialize_replacement;
+        ooo_cpu[i].L1DT.update_replacement_state = &CACHE::L1DT_update_replacement_state;
+        ooo_cpu[i].L1DT.find_victim = &CACHE::L1DT_find_victim;
+        ooo_cpu[i].L1DT.replacement_final_stats = &CACHE::L1DT_replacement_final_stats;
+        (ooo_cpu[i].L1DT.*(ooo_cpu[i].L1DT.initialize_replacement))();
 
         ooo_cpu[i].L1D.cpu = i;
         ooo_cpu[i].L1D.cache_type = IS_L1D;
         ooo_cpu[i].L1D.MAX_READ = (2 > MAX_READ_PER_CYCLE) ? MAX_READ_PER_CYCLE : 2;
         ooo_cpu[i].L1D.fill_level = FILL_L1;
-        ooo_cpu[i].L1D.upper_level_icache[i] = &ooo_cpu[i].L0D;
-        ooo_cpu[i].L1D.upper_level_dcache[i] = &ooo_cpu[i].L0D;
+        ooo_cpu[i].L1D.upper_level_icache[i] = &ooo_cpu[i].L1DT;
+        ooo_cpu[i].L1D.upper_level_dcache[i] = &ooo_cpu[i].L1DT;
         ooo_cpu[i].L1D.lower_level = &ooo_cpu[i].L2C;
         ooo_cpu[i].L1D.l1d_prefetcher_initialize();
 
@@ -1794,7 +1794,7 @@ int main(int argc, char **argv)
                 record_roi_stats(i, &ooo_cpu[i].ITLB);
                 record_roi_stats(i, &ooo_cpu[i].DTLB);
                 record_roi_stats(i, &ooo_cpu[i].STLB);
-		        record_roi_stats(i, &ooo_cpu[i].L0D);
+		        record_roi_stats(i, &ooo_cpu[i].L1DT);
                 record_roi_stats(i, &ooo_cpu[i].L1D);
                 record_roi_stats(i, &ooo_cpu[i].L1I);
                 record_roi_stats(i, &ooo_cpu[i].L2C);
@@ -1845,7 +1845,7 @@ int main(int argc, char **argv)
             print_sim_stats(i, &ooo_cpu[i].ITLB);
             print_sim_stats(i, &ooo_cpu[i].DTLB);
             print_sim_stats(i, &ooo_cpu[i].STLB);
-            print_sim_stats(i, &ooo_cpu[i].L0D);
+            print_sim_stats(i, &ooo_cpu[i].L1DT);
             print_sim_stats(i, &ooo_cpu[i].L1D);
             print_sim_stats(i, &ooo_cpu[i].L1I);
 #ifdef PERFECT_BTB
@@ -1863,7 +1863,7 @@ int main(int argc, char **argv)
             print_sim_stats(i, &ooo_cpu[i].PTW.PSCL2);
 
             ooo_cpu[i].l1i_prefetcher_final_stats();
-            // ooo_cpu[i].L0D.l1d_prefetcher_final_stats();
+            // ooo_cpu[i].L1DT.l1d_prefetcher_final_stats();
             ooo_cpu[i].L1D.l1d_prefetcher_final_stats();
             ooo_cpu[i].L2C.l2c_prefetcher_final_stats();
             ooo_cpu[i].L2C.l2c_replacement_final_stats();
@@ -1899,7 +1899,7 @@ int main(int argc, char **argv)
         print_roi_stats(i, &ooo_cpu[i].ITLB);
         print_roi_stats(i, &ooo_cpu[i].DTLB);
         print_roi_stats(i, &ooo_cpu[i].STLB);
-        print_roi_stats(i, &ooo_cpu[i].L0D);
+        print_roi_stats(i, &ooo_cpu[i].L1DT);
         print_roi_stats(i, &ooo_cpu[i].L1D);
         print_roi_stats(i, &ooo_cpu[i].L1I);
 #ifndef PERFECT_BTB
@@ -1939,7 +1939,7 @@ int main(int argc, char **argv)
     for (uint32_t i = 0; i < NUM_CPUS; i++)
     {
         ooo_cpu[i].l1i_prefetcher_final_stats();
-        // ooo_cpu[i].L0D.l0d_prefetcher_final_stats();
+        // ooo_cpu[i].L1DT.L1DT_prefetcher_final_stats();
         ooo_cpu[i].L1D.l1d_prefetcher_final_stats();
         ooo_cpu[i].L2C.l2c_prefetcher_final_stats();
         ooo_cpu[i].DTLB.dtlb_prefetcher_final_stats();
