@@ -87,6 +87,7 @@ public:
         is_speculative,
         fill_l1i,
         fill_l1d,
+        fill_L1DT,  // Aman: Added for transient (since it is directly accessile by core)
         tlb_access,
         scheduled,
         translated,
@@ -172,6 +173,7 @@ public:
         is_speculative = 0;
         fill_l1i = 0;
         fill_l1d = 0;
+        fill_L1DT = 0;
 
         tlb_access = 0;
         scheduled = 0;
