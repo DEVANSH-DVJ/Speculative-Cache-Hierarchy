@@ -30,8 +30,7 @@ public:
     // replacement state
     uint32_t lru;
 
-    // TimeCache specific
-    bool s_bit;
+    // Time stamp of instruction
     uint32_t timestamp;
 
     BLOCK()
@@ -55,7 +54,6 @@ public:
 
         lru = 0;
 
-        s_bit = false;
         timestamp = 0;
     };
 };
@@ -85,7 +83,8 @@ public:
         translated,
         fetched,
         prefetched,
-        drc_tag_read;
+        drc_tag_read,
+        is_speculative;
 
     int fill_level,
         pf_origin_level,
@@ -125,7 +124,8 @@ public:
         instr_id,
         ip,
         event_cycle,
-        cycle_enqueued;
+        cycle_enqueued,
+        timestamp;
 
     PACKET()
     {
@@ -139,6 +139,7 @@ public:
         fetched = 0;
         prefetched = 0;
         drc_tag_read = 0;
+        is_speculative = 0;
 
         returned = 0;
         asid[0] = UINT8_MAX;
@@ -153,6 +154,7 @@ public:
         depth = 0;
         signature = 0;
         confidence = 0;
+        timestamp = 0;
 
 #if 0
         for (uint32_t i=0; i<ROB_SIZE; i++) {
