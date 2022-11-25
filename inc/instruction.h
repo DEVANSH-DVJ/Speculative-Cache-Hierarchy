@@ -1,6 +1,9 @@
 #ifndef INSTRUCTION_H
 #define INSTRUCTION_H
 
+
+#define SPECULATIVE_BIT 1
+
 // instruction format
 #define ROB_SIZE 352
 #define LQ_SIZE 128
@@ -106,7 +109,7 @@ public:
       source_added[NUM_INSTR_SOURCES],
       destination_added[NUM_INSTR_DESTINATIONS_SPARC], is_producer, is_consumer,
       reg_RAW_producer, reg_ready, mem_ready, asid[2],
-      reg_RAW_checked[NUM_INSTR_SOURCES];
+      reg_RAW_checked[NUM_INSTR_SOURCES], speculative_bit;
 
   uint8_t branch_type;
   uint64_t branch_target;
@@ -211,6 +214,8 @@ public:
       sq_index[i] = UINT32_MAX;
       forwarding_index[i] = 0;
     }
+
+    speculative_bit = 0;
 
 #if 0
         for (uint32_t i=0; i<ROB_SIZE; i++) {

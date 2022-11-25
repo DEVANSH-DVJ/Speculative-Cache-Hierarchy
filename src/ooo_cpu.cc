@@ -1,8 +1,23 @@
 #include "ooo_cpu.h"
 #include "set.h"
 
+// Counters
+uint64_t commit_read_counter = 0;
+uint64_t speculative_load_counter = 1;
+uint64_t inst_speculative_load_counter = 1;
+uint64_t total_loads = 0, non_spec_loads = 0;
+uint64_t inst_total_loads = 0, inst_non_spec_loads = 0;
+
+// Move it to main
+uint64_t spec_frequency = 10;
+
 // out-of-order core
 O3_CPU ooo_cpu[NUM_CPUS];
+// @Sumon: Whenever a correctly predicted branch is encountered,
+// we will start a timer set to the average branch resolution latency of the
+// current instruction Till the timer expires, all instructions are marked to be
+// speculative
+uint64_t branch_resolution_timer[NUM_CPUS];
 uint64_t current_core_cycle[NUM_CPUS], stall_cycle[NUM_CPUS];
 uint32_t SCHEDULING_LATENCY = 0, EXEC_LATENCY = 0, DECODE_LATENCY = 0;
 
@@ -282,6 +297,25 @@ void O3_CPU::read_from_trace() {
           if (arch_instr.source_memory[i])
             num_mem_ops++;
         }
+
+#ifdef NTH_INSTR_SPEC
+        //* @Tarun: Assigning the speculative bit. Every 10th instruction is
+        // non-speculative.
+        total_loads++;
+        if (speculative_load_counter == spec_frequency) {
+        arch_instr.speculative_bit = 0;
+        non_spec_loads++;
+        } else {
+        arch_instr.speculative_bit = SPECULATIVE_BIT;
+        }
+        speculative_load_counter = speculative_load_counter % spec_frequency;
+        speculative_load_counter++;
+#endif
+
+#ifndef NTH_INSTR_SPEC
+        // Makes every instruction as speculative.
+        arch_instr.speculative_bit = SPECULATIVE_BIT;
+#endif
 
         arch_instr.num_reg_ops = num_reg_ops;
         arch_instr.num_mem_ops = num_mem_ops;
@@ -635,6 +669,70 @@ void O3_CPU::fetch_instruction() {
         (IFETCH_BUFFER.entry[index].fetched == 0)) {
       // add it to the L1-I's read queue
       PACKET fetch_packet;
+            // Sumon: set branch resolution timer. All instructions will be classified 
+            // to be speculative till the branch resolution timer expires
+#ifdef SPEC_INST_CLASSIFICATOIN
+        if (IFETCH_BUFFER.entry[index].is_branch &&
+            !IFETCH_BUFFER.entry[index].branch_mispredicted) {
+            switch (IFETCH_BUFFER.entry[index].branch_type) {
+            case BRANCH_DIRECT_JUMP:
+            branch_resolution_timer[cpu] =
+                current_core_cycle[cpu] + BRANCH_DIRECT_JUMP_RESOLUTION_LATENCY;
+            break;
+            case BRANCH_DIRECT_CALL:
+            branch_resolution_timer[cpu] =
+                current_core_cycle[cpu] + BRANCH_DIRECT_CALL_RESOLUTION_LATENCY;
+            break;
+            case BRANCH_CONDITIONAL:
+            branch_resolution_timer[cpu] =
+                current_core_cycle[cpu] + BRANCH_CONDITIONAL_RESOLUTION_LATENCY;
+            break;
+            case BRANCH_INDIRECT:
+            branch_resolution_timer[cpu] =
+                current_core_cycle[cpu] + BRANCH_INDIRECT_RESOLUTION_LATENCY;
+            break;
+            case BRANCH_INDIRECT_CALL:
+            branch_resolution_timer[cpu] =
+                current_core_cycle[cpu] + BRANCH_INDIRECT_CALL_RESOLUTION_LATENCY;
+            break;
+            case BRANCH_RETURN:
+            branch_resolution_timer[cpu] =
+                current_core_cycle[cpu] + BRANCH_RETURN_RESOLUTION_LATENCY;
+            break;
+
+            default:
+            abort();
+            }
+        }
+        if (branch_resolution_timer[cpu] >= current_core_cycle[cpu]) {
+            fetch_packet.is_speculative = SPECULATIVE_BIT;
+        } else {
+            fetch_packet.is_speculative = 0;
+            inst_non_spec_loads++;
+        }
+        inst_total_loads++;
+#endif
+
+#ifdef NTH_INSTR_SPEC
+      //* 90% instruction fetch packets should have speculative bit = 1
+      inst_total_loads++;
+      if (inst_speculative_load_counter == spec_frequency) {
+          fetch_packet.is_speculative = 0;
+          inst_non_spec_loads++;
+      } else {
+          fetch_packet.is_speculative = SPECULATIVE_BIT;
+      }
+      inst_speculative_load_counter = inst_speculative_load_counter % spec_frequency;
+      inst_speculative_load_counter++;
+#endif
+
+#ifndef NTH_INSTR_SPEC
+#ifndef SPEC_INST_CLASSIFICATOIN
+      fetch_packet.is_speculative =
+          SPECULATIVE_BIT; // Every instruction fetch is speculative since every 5th instn is
+              // branch and Fetch Width is 5.
+#endif
+#endif
       fetch_packet.instruction = 1;
       fetch_packet.is_data = 0;
       fetch_packet.fill_level = FILL_L1;
