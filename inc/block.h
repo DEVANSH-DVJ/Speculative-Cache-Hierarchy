@@ -51,7 +51,7 @@ public:
 class PACKET {
 public:
   uint8_t instruction, is_data, fill_l1i, fill_l1d, tlb_access, scheduled,
-      translated, fetched, prefetched, drc_tag_read;
+      translated, fetched, prefetched, drc_tag_read, is_speculative;
 
   int fill_level, pf_origin_level, rob_signal, rob_index, producer, delta,
       depth, signature, confidence;
@@ -82,6 +82,7 @@ public:
     fetched = 0;
     prefetched = 0;
     drc_tag_read = 0;
+    is_speculative = 0;
 
     returned = 0;
     asid[0] = UINT8_MAX;
