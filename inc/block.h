@@ -5,6 +5,9 @@
 #include "instruction.h"
 #include "set.h"
 
+#define NORMAL_HIERARCHY 0
+#define SPECULATIVE_HIERARCHY 1
+
 // CACHE BLOCK
 class BLOCK
 {
@@ -139,7 +142,7 @@ public:
         fetched = 0;
         prefetched = 0;
         drc_tag_read = 0;
-        is_speculative = 0;
+        is_speculative = NORMAL_HIERARCHY;
 
         returned = 0;
         asid[0] = UINT8_MAX;
