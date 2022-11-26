@@ -5,6 +5,9 @@
 #include "instruction.h"
 #include "set.h"
 
+#define NORMAL_HIERARCHY 0
+#define SPECULATIVE_HIERARCHY 1
+
 // CACHE BLOCK
 class BLOCK {
 public:
@@ -16,6 +19,9 @@ public:
 
   // replacement state
   uint32_t lru;
+
+  // Time stamp of instruction
+  uint32_t timestamp;
 
   BLOCK() {
     valid = 0;
@@ -69,7 +75,7 @@ public:
   uint32_t cpu, data_index, lq_index, sq_index;
 
   uint64_t address, full_addr, instruction_pa, data_pa, data, instr_id, ip,
-      event_cycle, cycle_enqueued;
+      event_cycle, cycle_enqueued, timestamp;
 
   PACKET() {
     instruction = 0;
@@ -82,7 +88,7 @@ public:
     fetched = 0;
     prefetched = 0;
     drc_tag_read = 0;
-    is_speculative = 0;
+    is_speculative = NORMAL_HIERARCHY;
 
     returned = 0;
     asid[0] = UINT8_MAX;
@@ -97,6 +103,7 @@ public:
     depth = 0;
     signature = 0;
     confidence = 0;
+    timestamp = 0;
 
 #if 0
         for (uint32_t i=0; i<ROB_SIZE; i++) {
