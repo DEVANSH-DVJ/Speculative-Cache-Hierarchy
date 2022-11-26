@@ -12,4 +12,4 @@ replacement/llc_replacement.cc
 inc/champsim.h.bak
 
 *.champsimtrace.xz
-results_10M/*/*.txt
+results_1M/*/*/*.txt
