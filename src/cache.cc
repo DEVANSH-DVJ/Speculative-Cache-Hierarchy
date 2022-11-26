@@ -1322,7 +1322,7 @@ void CACHE::operate() {
   handle_writeback();
   reads_available_this_cycle = MAX_READ;
   handle_read();
-
+  commit_blocks();
   if (PQ.occupancy && (reads_available_this_cycle > 0))
     handle_prefetch();
 }
@@ -2160,6 +2160,8 @@ uint32_t CACHE::get_occupancy(uint8_t queue_type, uint64_t address) {
     return WQ.occupancy;
   else if (queue_type == 3)
     return PQ.occupancy;
+  else if (queue_type == 4)
+    return CQ.occupancy;
 
   return 0;
 }
@@ -2173,8 +2175,147 @@ uint32_t CACHE::get_size(uint8_t queue_type, uint64_t address) {
     return WQ.SIZE;
   else if (queue_type == 3)
     return PQ.SIZE;
+  else if (queue_type == 4)
+    return CQ.SIZE;
 
   return 0;
 }
 
 void CACHE::increment_WQ_FULL(uint64_t address) { WQ.FULL++; }
+
+void CACHE::commit_blocks() {
+
+  if (CQ.occupancy == 0 ) {
+    return;
+  }
+
+  // get the head packet
+  PACKET *spec_packet = &CQ.entry[CQ.head];
+  
+  assert(spec_packet->is_speculative);
+
+  // check the event cycle
+  if (spec_packet->event_cycle < current_core_cycle[cpu]) {
+    // do nothing
+    return;
+  }
+
+  // check it it is a hit in spec cache
+  uint32_t set = get_set(spec_packet->address, SPECULATIVE_HIERARCHY);
+  int way = check_hit(spec_packet, SPECULATIVE_HIERARCHY);
+
+  if (way > 0) {
+    // move to normal heirarchy
+    uint32_t target_set, target_way;
+
+    target_set = get_set(spec_packet->address, NORMAL_HIERARCHY);
+    if (cache_type == IS_LLC) {
+      target_way = llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
+                            block[target_set], spec_packet->ip,
+                            spec_packet->full_addr,
+                            spec_packet->type);
+    } else {
+      target_way = find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
+                        block[target_set], spec_packet->ip,
+                        spec_packet->full_addr,
+                        spec_packet->type);
+    }
+
+    PACKET fill_packet;
+    fill_packet.delta = spec_block[set][way].delta;
+    fill_packet.depth = spec_block[set][way].depth;
+    fill_packet.signature = spec_block[set][way].signature;
+    fill_packet.confidence = spec_block[set][way].confidence;
+    fill_packet.address = spec_block[set][way].tag;
+    fill_packet.full_addr = spec_block[set][way].full_addr;
+    fill_packet.data = spec_block[set][way].data;
+    fill_packet.ip = spec_block[set][way].ip;
+    fill_packet.cpu = spec_block[set][way].cpu;
+    fill_packet.instr_id = spec_block[set][way].instr_id;
+
+
+    fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
+    
+    // @Sameer: Can we mark the speculative block as available?
+
+  }
+
+  // If this is not the last level, then send the request to next lower level
+
+  if (cache_type != IS_LLC && cache_type != IS_STLB) {
+    if (lower_level->CQ.occupancy < lower_level->CQ.SIZE) {
+      lower_level->add_cq(spec_packet);
+    } else {
+      assert(0); // If assert fails then need to handle this case.
+    }
+  }
+
+  // remove the packet
+  CQ.remove_queue(spec_packet);
+}
+
+
+int CACHE::add_cq(PACKET *packet) {
+  // check for duplicates in the commit queue
+  int index = CQ.check_queue(packet);
+  if (index != -1) {
+
+    // treat as merged
+    CQ.MERGED++;
+    CQ.ACCESS++;
+
+    return index; // merged index
+  }
+
+  // check occupancy
+  if (CQ.occupancy == CQ_SIZE) {
+    CQ.FULL++;
+
+    return -2; // cannot handle this request
+  }
+
+  // if there is no duplicate, add it to CQ
+  index = CQ.tail;
+
+#ifdef SANITY_CHECK
+  if (CQ.entry[index].address != 0) {
+    cerr << "[" << NAME << "_ERROR] " << __func__
+         << " is not empty index: " << index;
+    cerr << " address: " << hex << CQ.entry[index].address;
+    cerr << " full_addr: " << CQ.entry[index].full_addr << dec << endl;
+    assert(0);
+  }
+#endif
+
+  CQ.entry[index] = *packet;
+
+  // ADD LATENCY
+  if (CQ.entry[index].event_cycle < current_core_cycle[packet->cpu])
+    CQ.entry[index].event_cycle = current_core_cycle[packet->cpu] + LATENCY;
+  else
+    CQ.entry[index].event_cycle += LATENCY;
+
+  CQ.occupancy++;
+  CQ.tail++;
+  if (CQ.tail >= CQ.SIZE)
+    CQ.tail = 0;
+
+  DP(if (warmup_complete[CQ.entry[index].cpu]) {
+    cout << "[" << NAME << "_CQ] " << __func__
+         << " instr_id: " << CQ.entry[index].instr_id << " address: " << hex
+         << CQ.entry[index].address;
+    cout << " full_addr: " << CQ.entry[index].full_addr << dec;
+    cout << " type: " << +CQ.entry[index].type << " head: " << CQ.head
+         << " tail: " << CQ.tail << " occupancy: " << CQ.occupancy;
+    cout << " event: " << CQ.entry[index].event_cycle
+         << " current: " << current_core_cycle[CQ.entry[index].cpu] << endl;
+  });
+
+  if (packet->address == 0)
+    assert(0);
+
+  CQ.TO_CACHE++;
+  CQ.ACCESS++;
+
+  return -1;
+}

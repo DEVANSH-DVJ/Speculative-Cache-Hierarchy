@@ -97,7 +97,7 @@ public:
   uint32_t cpu;
   const string NAME;
   const uint32_t NUM_SET, NUM_WAY, NUM_LINE, WQ_SIZE, RQ_SIZE, PQ_SIZE,
-      MSHR_SIZE;
+      MSHR_SIZE, CQ_SIZE;
   const uint32_t NUM_SET_SPEC, NUM_WAY_SPEC;
   uint32_t LATENCY;
   BLOCK **block, **spec_block;
@@ -114,7 +114,8 @@ public:
       RQ{NAME + "_RQ", RQ_SIZE},                // read queue
       PQ{NAME + "_PQ", PQ_SIZE},                // prefetch queue
       MSHR{NAME + "_MSHR", MSHR_SIZE},          // MSHR
-      PROCESSED{NAME + "_PROCESSED", ROB_SIZE}; // processed queue
+      PROCESSED{NAME + "_PROCESSED", ROB_SIZE}, // processed queue
+      CQ{NAME + "_WQ", CQ_SIZE};                // commit queue
 
   uint64_t sim_access[NUM_CPUS][NUM_TYPES], sim_hit[NUM_CPUS][NUM_TYPES],
       sim_miss[NUM_CPUS][NUM_TYPES], roi_access[NUM_CPUS][NUM_TYPES],
@@ -124,10 +125,10 @@ public:
 
   // constructor
   CACHE(string v1, uint32_t v2, int v3, uint32_t v2a, int v3a, uint32_t v4,
-        uint32_t v5, uint32_t v6, uint32_t v7, uint32_t v8)
+        uint32_t v5, uint32_t v6, uint32_t v7, uint32_t v8, uint32_t v9)
       : NAME(v1), NUM_SET(v2), NUM_WAY(v3), NUM_LINE(v4), NUM_SET_SPEC(v2a),
         NUM_WAY_SPEC(v3a), WQ_SIZE(v5), RQ_SIZE(v6), PQ_SIZE(v7),
-        MSHR_SIZE(v8) {
+        MSHR_SIZE(v8), CQ_SIZE(v9) {
 
     LATENCY = 0;
 
@@ -190,7 +191,7 @@ public:
   };
 
   // functions
-  int add_rq(PACKET *packet), add_wq(PACKET *packet), add_pq(PACKET *packet);
+  int add_rq(PACKET *packet), add_wq(PACKET *packet), add_pq(PACKET *packet), add_cq(PACKET *packet);
 
   void return_data(PACKET *packet), operate(),
       increment_WQ_FULL(uint64_t address);
@@ -209,7 +210,7 @@ public:
                         uint32_t prefetch_metadata);
 
   void handle_fill(), handle_writeback(), handle_read(), handle_prefetch();
-
+  
   void add_mshr(PACKET *packet), update_fill_cycle(),
       llc_initialize_replacement(),
       update_replacement_state(uint32_t cpu, uint32_t set, uint32_t way,
@@ -269,6 +270,7 @@ public:
       timestamp_victim(uint32_t cpu, uint64_t instr_id, uint32_t set,
                        const BLOCK *current_set, uint64_t ip,
                        uint64_t full_addr, uint32_t type);
+      void commit_blocks();
 };
 
 #endif

@@ -26,12 +26,13 @@ public:
       *lower_level, *extra_interface;
 
   // empty queues
-  PACKET_QUEUE WQ{"EMPTY", 1}, RQ{"EMPTY", 1}, PQ{"EMPTY", 1}, MSHR{"EMPTY", 1};
+  PACKET_QUEUE WQ{"EMPTY", 1}, RQ{"EMPTY", 1}, PQ{"EMPTY", 1}, MSHR{"EMPTY", 1}, CQ{"EMPTY", 1};
 
   // functions
   virtual int add_rq(PACKET *packet) = 0;
   virtual int add_wq(PACKET *packet) = 0;
   virtual int add_pq(PACKET *packet) = 0;
+  virtual int add_cq(PACKET *packet) = 0;
   virtual void return_data(PACKET *packet) = 0;
   virtual void operate() = 0;
   virtual void increment_WQ_FULL(uint64_t address) = 0;

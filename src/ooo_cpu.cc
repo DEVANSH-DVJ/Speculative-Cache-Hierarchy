@@ -2659,29 +2659,35 @@ void O3_CPU::retire_rob() {
 
 void O3_CPU::commit_blocks(ooo_model_instr *arch_instr) {
 
-    PACKET fetch_packet;
-    fetch_packet.is_speculative = 0; //* L0_SPEC
-    fetch_packet.instruction = 1;
-    fetch_packet.is_data = 0;
+    PACKET commit_packet;
+    commit_packet.is_speculative = 1; //* L0_SPEC
+    commit_packet.instruction = 1;
+    commit_packet.is_data = 0;
 
 
-    fetch_packet.fill_level = FILL_L1; //* L0I_CACHE
-    fetch_packet.cpu = cpu;
-    fetch_packet.address =
+    commit_packet.fill_level = FILL_L1; //* L0I_CACHE
+    commit_packet.cpu = cpu;
+    commit_packet.address =
         (arch_instr->instruction_pa) >>
         LOG2_BLOCK_SIZE; // instruction_pa is the complete physical address
-    fetch_packet.instruction_pa = arch_instr->instruction_pa;
-    fetch_packet.full_addr = arch_instr->instruction_pa;
+    commit_packet.instruction_pa = arch_instr->instruction_pa;
+    commit_packet.full_addr = arch_instr->instruction_pa;
 
-    fetch_packet.instr_id = arch_instr->instr_id;
-    fetch_packet.rob_index = 0;
-    fetch_packet.producer = 0;
-    fetch_packet.ip =
+    commit_packet.instr_id = arch_instr->instr_id;
+    commit_packet.rob_index = 0;
+    commit_packet.producer = 0;
+    commit_packet.ip =
         arch_instr->ip; // but the instruction is now committed from the ROB ??
-    fetch_packet.type = COMMIT_LOAD;
-    fetch_packet.asid[0] = 0;
-    fetch_packet.asid[1] = 0;
-    fetch_packet.event_cycle = current_core_cycle[cpu];
+    commit_packet.type = COMMIT_LOAD;
+    commit_packet.asid[0] = 0;
+    commit_packet.asid[1] = 0;
+    commit_packet.event_cycle = current_core_cycle[cpu];
 
     // to be sent to the cache 
+    if (L1D.CQ.occupancy < L1D.CQ.SIZE) {
+      L1D.add_cq(&commit_packet);
+    } else {
+      assert(0); // If assert fails then need to handle this case.
+    }
+    // TO ADD from TLB ?
 }
