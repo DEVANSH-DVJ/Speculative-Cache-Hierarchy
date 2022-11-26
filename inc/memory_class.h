@@ -10,6 +10,8 @@
 #define PREFETCH 2
 #define WRITEBACK 3
 #define NUM_TYPES 4
+// CACHE COMMIT MSG
+#define COMMIT_LOAD 5
 
 extern uint32_t tRP, // Row Precharge (RP) latency
     tRCD,            // Row address to Column address (RCD) latency

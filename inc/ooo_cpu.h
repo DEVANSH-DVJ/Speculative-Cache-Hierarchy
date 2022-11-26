@@ -232,6 +232,9 @@ public:
                                  uint8_t prefetch, uint64_t evicted_v_addr);
   void l1i_prefetcher_final_stats();
   int prefetch_code_line(uint64_t pf_v_addr);
+
+  // Speculative
+  void commit_blocks(ooo_model_instr *arch_instr); 
 };
 
 extern O3_CPU ooo_cpu[NUM_CPUS];
