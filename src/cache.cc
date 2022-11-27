@@ -40,7 +40,7 @@ void CACHE::handle_fill() {
       way = find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set,
                         block[set], MSHR.entry[mshr_index].ip,
                         MSHR.entry[mshr_index].full_addr,
-                        MSHR.entry[mshr_index].type);
+                        MSHR.entry[mshr_index].instr_id);
       // way = timestamp_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set,
       //                        block[set], MSHR.entry[mshr_index].ip,
       //                        MSHR.entry[mshr_index].full_addr,
@@ -270,6 +270,7 @@ void CACHE::handle_fill() {
         update_fill_cycle();
       }
     } else {
+      if (way == NUM_WAY) do_fill = 0;
       if (do_fill) {
         // COLLECT STATS
         sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
@@ -772,6 +773,11 @@ void CACHE::handle_read() {
 
         uint32_t set = get_set(RQ.entry[index].address, SPECULATIVE_HIERARCHY);
         int way = check_hit(&RQ.entry[index], SPECULATIVE_HIERARCHY);
+
+        // This part done in check_hit function
+        // uint32_t blk_timestamp = spec_block[set][way].timestamp;
+        // // Valid only if timestamp of request exceeds block timestamp
+        // way = (blk_timestamp <= RQ.entry[index].instr_id) ? way : 0
 
         if (way >= 0) { // read hit in speculative hierarchy
 
@@ -1483,7 +1489,7 @@ int CACHE::check_hit(PACKET *packet, uint8_t cache_nature) {
     for (uint32_t way = 0; way < NUM_WAY_SPEC; way++) {
       BLOCK blk = spec_block[set][way];
       if (blk.valid && (blk.tag == packet->address) &&
-          (blk.timestamp <= packet->timestamp)) {
+          (blk.timestamp <= packet->instr_id)) {
 
         match_way = way;
 

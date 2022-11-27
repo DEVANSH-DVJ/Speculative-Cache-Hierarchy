@@ -1,6 +1,6 @@
 #include "cache.h"
 
-uint32_t CACHE::timestamp_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t type)
+uint32_t CACHE::timestamp_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, const BLOCK *current_set, uint64_t ip, uint64_t full_addr, uint32_t timestamp)
 {
     uint32_t way = 0;
 
@@ -19,8 +19,8 @@ uint32_t CACHE::timestamp_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, 
 
     // Timestamp victim
     if (way == NUM_WAY) {
-        uint64_t max_timestamp = 0;
-        uint32_t selected_way = 0;
+        uint64_t max_timestamp = timestamp;
+        uint32_t selected_way = NUM_WAY;
         for (way=0; way<NUM_WAY; way++) {
             if (spec_block[set][way].timestamp > max_timestamp) {
 
@@ -36,6 +36,7 @@ uint32_t CACHE::timestamp_victim(uint32_t cpu, uint64_t instr_id, uint32_t set, 
             }
         }
         way = selected_way;
+        return way;
     }
 
     if (way == NUM_WAY) {
