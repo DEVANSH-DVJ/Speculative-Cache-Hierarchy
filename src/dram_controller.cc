@@ -599,6 +599,8 @@ int MEMORY_CONTROLLER::add_wq(PACKET *packet) {
 
 int MEMORY_CONTROLLER::add_pq(PACKET *packet) { return -1; }
 
+int MEMORY_CONTROLLER::add_cq(PACKET *packet) { return -1; }
+
 void MEMORY_CONTROLLER::return_data(PACKET *packet) {}
 
 void MEMORY_CONTROLLER::update_schedule_cycle(PACKET_QUEUE *queue) {

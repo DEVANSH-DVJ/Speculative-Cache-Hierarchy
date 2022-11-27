@@ -303,10 +303,10 @@ void O3_CPU::read_from_trace() {
         // non-speculative.
         total_loads++;
         if (speculative_load_counter == spec_frequency) {
-        arch_instr.speculative_bit = 0;
-        non_spec_loads++;
+          arch_instr.speculative_bit = 0;
+          non_spec_loads++;
         } else {
-        arch_instr.speculative_bit = SPECULATIVE_BIT;
+          arch_instr.speculative_bit = SPECULATIVE_BIT;
         }
         speculative_load_counter = speculative_load_counter % spec_frequency;
         speculative_load_counter++;
@@ -669,68 +669,69 @@ void O3_CPU::fetch_instruction() {
         (IFETCH_BUFFER.entry[index].fetched == 0)) {
       // add it to the L1-I's read queue
       PACKET fetch_packet;
-            // Sumon: set branch resolution timer. All instructions will be classified 
-            // to be speculative till the branch resolution timer expires
+      // Sumon: set branch resolution timer. All instructions will be classified
+      // to be speculative till the branch resolution timer expires
 #ifdef SPEC_INST_CLASSIFICATOIN
-        if (IFETCH_BUFFER.entry[index].is_branch &&
-            !IFETCH_BUFFER.entry[index].branch_mispredicted) {
-            switch (IFETCH_BUFFER.entry[index].branch_type) {
-            case BRANCH_DIRECT_JUMP:
-            branch_resolution_timer[cpu] =
-                current_core_cycle[cpu] + BRANCH_DIRECT_JUMP_RESOLUTION_LATENCY;
-            break;
-            case BRANCH_DIRECT_CALL:
-            branch_resolution_timer[cpu] =
-                current_core_cycle[cpu] + BRANCH_DIRECT_CALL_RESOLUTION_LATENCY;
-            break;
-            case BRANCH_CONDITIONAL:
-            branch_resolution_timer[cpu] =
-                current_core_cycle[cpu] + BRANCH_CONDITIONAL_RESOLUTION_LATENCY;
-            break;
-            case BRANCH_INDIRECT:
-            branch_resolution_timer[cpu] =
-                current_core_cycle[cpu] + BRANCH_INDIRECT_RESOLUTION_LATENCY;
-            break;
-            case BRANCH_INDIRECT_CALL:
-            branch_resolution_timer[cpu] =
-                current_core_cycle[cpu] + BRANCH_INDIRECT_CALL_RESOLUTION_LATENCY;
-            break;
-            case BRANCH_RETURN:
-            branch_resolution_timer[cpu] =
-                current_core_cycle[cpu] + BRANCH_RETURN_RESOLUTION_LATENCY;
-            break;
+      if (IFETCH_BUFFER.entry[index].is_branch &&
+          !IFETCH_BUFFER.entry[index].branch_mispredicted) {
+        switch (IFETCH_BUFFER.entry[index].branch_type) {
+        case BRANCH_DIRECT_JUMP:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_DIRECT_JUMP_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_DIRECT_CALL:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_DIRECT_CALL_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_CONDITIONAL:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_CONDITIONAL_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_INDIRECT:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_INDIRECT_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_INDIRECT_CALL:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_INDIRECT_CALL_RESOLUTION_LATENCY;
+          break;
+        case BRANCH_RETURN:
+          branch_resolution_timer[cpu] =
+              current_core_cycle[cpu] + BRANCH_RETURN_RESOLUTION_LATENCY;
+          break;
 
-            default:
-            abort();
-            }
+        default:
+          abort();
         }
-        if (branch_resolution_timer[cpu] >= current_core_cycle[cpu]) {
-            fetch_packet.is_speculative = SPECULATIVE_BIT;
-        } else {
-            fetch_packet.is_speculative = 0;
-            inst_non_spec_loads++;
-        }
-        inst_total_loads++;
+      }
+      if (branch_resolution_timer[cpu] >= current_core_cycle[cpu]) {
+        fetch_packet.is_speculative = SPECULATIVE_BIT;
+      } else {
+        fetch_packet.is_speculative = 0;
+        inst_non_spec_loads++;
+      }
+      inst_total_loads++;
 #endif
 
 #ifdef NTH_INSTR_SPEC
       //* 90% instruction fetch packets should have speculative bit = 1
       inst_total_loads++;
       if (inst_speculative_load_counter == spec_frequency) {
-          fetch_packet.is_speculative = 0;
-          inst_non_spec_loads++;
+        fetch_packet.is_speculative = 0;
+        inst_non_spec_loads++;
       } else {
-          fetch_packet.is_speculative = SPECULATIVE_BIT;
+        fetch_packet.is_speculative = SPECULATIVE_BIT;
       }
-      inst_speculative_load_counter = inst_speculative_load_counter % spec_frequency;
+      inst_speculative_load_counter =
+          inst_speculative_load_counter % spec_frequency;
       inst_speculative_load_counter++;
 #endif
 
 #ifndef NTH_INSTR_SPEC
 #ifndef SPEC_INST_CLASSIFICATOIN
       fetch_packet.is_speculative =
-          SPECULATIVE_BIT; // Every instruction fetch is speculative since every 5th instn is
-              // branch and Fetch Width is 5.
+          SPECULATIVE_BIT; // Every instruction fetch is speculative since every
+                           // 5th instn is branch and Fetch Width is 5.
 #endif
 #endif
       fetch_packet.instruction = 1;
@@ -1972,8 +1973,9 @@ void O3_CPU::complete_execution(uint32_t rob_index) {
         if (ROB.entry[rob_index].reg_RAW_producer)
           reg_RAW_release(rob_index);
 
-        if (ROB.entry[rob_index].speculative_bit && !ROB.entry[rob_index].branch_mispredicted) {
-            commit_blocks(&(ROB.entry[rob_index]));
+        if (ROB.entry[rob_index].speculative_bit &&
+            !ROB.entry[rob_index].branch_mispredicted) {
+          commit_blocks(&(ROB.entry[rob_index]));
         }
 
         if (ROB.entry[rob_index].branch_mispredicted) {
@@ -2659,35 +2661,34 @@ void O3_CPU::retire_rob() {
 
 void O3_CPU::commit_blocks(ooo_model_instr *arch_instr) {
 
-    PACKET commit_packet;
-    commit_packet.is_speculative = 1; //* L0_SPEC
-    commit_packet.instruction = 1;
-    commit_packet.is_data = 0;
+  PACKET commit_packet;
+  commit_packet.is_speculative = 1; //* L0_SPEC
+  commit_packet.instruction = 1;
+  commit_packet.is_data = 0;
 
+  commit_packet.fill_level = FILL_L1; //* L0I_CACHE
+  commit_packet.cpu = cpu;
+  commit_packet.address =
+      (arch_instr->instruction_pa) >>
+      LOG2_BLOCK_SIZE; // instruction_pa is the complete physical address
+  commit_packet.instruction_pa = arch_instr->instruction_pa;
+  commit_packet.full_addr = arch_instr->instruction_pa;
 
-    commit_packet.fill_level = FILL_L1; //* L0I_CACHE
-    commit_packet.cpu = cpu;
-    commit_packet.address =
-        (arch_instr->instruction_pa) >>
-        LOG2_BLOCK_SIZE; // instruction_pa is the complete physical address
-    commit_packet.instruction_pa = arch_instr->instruction_pa;
-    commit_packet.full_addr = arch_instr->instruction_pa;
+  commit_packet.instr_id = arch_instr->instr_id;
+  commit_packet.rob_index = 0;
+  commit_packet.producer = 0;
+  commit_packet.ip =
+      arch_instr->ip; // but the instruction is now committed from the ROB ??
+  commit_packet.type = COMMIT_LOAD;
+  commit_packet.asid[0] = 0;
+  commit_packet.asid[1] = 0;
+  commit_packet.event_cycle = current_core_cycle[cpu];
 
-    commit_packet.instr_id = arch_instr->instr_id;
-    commit_packet.rob_index = 0;
-    commit_packet.producer = 0;
-    commit_packet.ip =
-        arch_instr->ip; // but the instruction is now committed from the ROB ??
-    commit_packet.type = COMMIT_LOAD;
-    commit_packet.asid[0] = 0;
-    commit_packet.asid[1] = 0;
-    commit_packet.event_cycle = current_core_cycle[cpu];
-
-    // to be sent to the cache 
-    if (L1D.CQ.occupancy < L1D.CQ.SIZE) {
-      L1D.add_cq(&commit_packet);
-    } else {
-      assert(0); // If assert fails then need to handle this case.
-    }
-    // TO ADD from TLB ?
+  // to be sent to the cache
+  if (L1D.CQ.occupancy < L1D.CQ.SIZE) {
+    L1D.add_cq(&commit_packet);
+  } else {
+    assert(0); // If assert fails then need to handle this case.
+  }
+  // TO ADD from TLB ?
 }

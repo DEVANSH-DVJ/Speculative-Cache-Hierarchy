@@ -2185,13 +2185,13 @@ void CACHE::increment_WQ_FULL(uint64_t address) { WQ.FULL++; }
 
 void CACHE::commit_blocks() {
 
-  if (CQ.occupancy == 0 ) {
+  if (CQ.occupancy == 0) {
     return;
   }
 
   // get the head packet
   PACKET *spec_packet = &CQ.entry[CQ.head];
-  
+
   assert(spec_packet->is_speculative);
 
   // check the event cycle
@@ -2210,15 +2210,14 @@ void CACHE::commit_blocks() {
 
     target_set = get_set(spec_packet->address, NORMAL_HIERARCHY);
     if (cache_type == IS_LLC) {
-      target_way = llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
-                            block[target_set], spec_packet->ip,
-                            spec_packet->full_addr,
-                            spec_packet->type);
+      target_way =
+          llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
+                          block[target_set], spec_packet->ip,
+                          spec_packet->full_addr, spec_packet->type);
     } else {
-      target_way = find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
-                        block[target_set], spec_packet->ip,
-                        spec_packet->full_addr,
-                        spec_packet->type);
+      target_way = find_victim(spec_packet->cpu, spec_packet->instr_id,
+                               target_set, block[target_set], spec_packet->ip,
+                               spec_packet->full_addr, spec_packet->type);
     }
 
     PACKET fill_packet;
@@ -2233,11 +2232,9 @@ void CACHE::commit_blocks() {
     fill_packet.cpu = spec_block[set][way].cpu;
     fill_packet.instr_id = spec_block[set][way].instr_id;
 
-
     fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
-    
-    // @Sameer: Can we mark the speculative block as available?
 
+    // @Sameer: Can we mark the speculative block as available?
   }
 
   // If this is not the last level, then send the request to next lower level
@@ -2253,7 +2250,6 @@ void CACHE::commit_blocks() {
   // remove the packet
   CQ.remove_queue(spec_packet);
 }
-
 
 int CACHE::add_cq(PACKET *packet) {
   // check for duplicates in the commit queue

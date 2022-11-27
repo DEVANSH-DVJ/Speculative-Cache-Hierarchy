@@ -26,7 +26,8 @@ public:
       *lower_level, *extra_interface;
 
   // empty queues
-  PACKET_QUEUE WQ{"EMPTY", 1}, RQ{"EMPTY", 1}, PQ{"EMPTY", 1}, MSHR{"EMPTY", 1}, CQ{"EMPTY", 1};
+  PACKET_QUEUE WQ{"EMPTY", 1}, RQ{"EMPTY", 1}, PQ{"EMPTY", 1}, MSHR{"EMPTY", 1},
+      CQ{"EMPTY", 1};
 
   // functions
   virtual int add_rq(PACKET *packet) = 0;

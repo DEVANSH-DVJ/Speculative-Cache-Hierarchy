@@ -25,6 +25,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define ITLB_PQ_SIZE 0
 #define ITLB_MSHR_SIZE 8
 #define ITLB_LATENCY 1
+#define ITLB_CQ_SIZE 16
 
 // DATA TLB
 #define DTLB_SET 16
@@ -36,6 +37,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define DTLB_PQ_SIZE 0
 #define DTLB_MSHR_SIZE 8
 #define DTLB_LATENCY 1
+#define DTLB_CQ_SIZE 16
 
 // SECOND LEVEL TLB
 #define STLB_SET 128
@@ -47,6 +49,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define STLB_PQ_SIZE 0
 #define STLB_MSHR_SIZE 16
 #define STLB_LATENCY 8
+#define STLB_CQ_SIZE 32
 
 // L1 INSTRUCTION CACHE
 #define L1I_SET 64
@@ -58,6 +61,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define L1I_PQ_SIZE 32
 #define L1I_MSHR_SIZE 8
 #define L1I_LATENCY 4
+#define L1I_CQ_SIZE 64
 
 // L1 DATA CACHE
 #define L1D_SET 64
@@ -69,6 +73,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define L1D_PQ_SIZE 8
 #define L1D_MSHR_SIZE 16
 #define L1D_LATENCY 5
+#define L1D_CQ_SIZE 64
 
 // L2 CACHE
 #define L2C_SET 1024
@@ -80,6 +85,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define L2C_PQ_SIZE 16
 #define L2C_MSHR_SIZE 32
 #define L2C_LATENCY 10 // 4/5 (L1I or L1D) + 10 = 14/15 cycles
+#define L2C_CQ_SIZE 32
 
 // LAST LEVEL CACHE
 #define LLC_SET NUM_CPUS * 2048
@@ -91,6 +97,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define LLC_PQ_SIZE NUM_CPUS * 32
 #define LLC_MSHR_SIZE NUM_CPUS * 64
 #define LLC_LATENCY 20 // 4/5 (L1I or L1D) + 10 + 20 = 34/35 cycles
+#define LLC_CQ_SIZE NUM_CPUS *L2C_MSHR_SIZE
 
 class CACHE : public MEMORY {
 public:
@@ -127,8 +134,8 @@ public:
   CACHE(string v1, uint32_t v2, int v3, uint32_t v2a, int v3a, uint32_t v4,
         uint32_t v5, uint32_t v6, uint32_t v7, uint32_t v8, uint32_t v9)
       : NAME(v1), NUM_SET(v2), NUM_WAY(v3), NUM_LINE(v4), NUM_SET_SPEC(v2a),
-        NUM_WAY_SPEC(v3a), WQ_SIZE(v5), RQ_SIZE(v6), PQ_SIZE(v7),
-        MSHR_SIZE(v8), CQ_SIZE(v9) {
+        NUM_WAY_SPEC(v3a), WQ_SIZE(v5), RQ_SIZE(v6), PQ_SIZE(v7), MSHR_SIZE(v8),
+        CQ_SIZE(v9) {
 
     LATENCY = 0;
 
@@ -191,7 +198,8 @@ public:
   };
 
   // functions
-  int add_rq(PACKET *packet), add_wq(PACKET *packet), add_pq(PACKET *packet), add_cq(PACKET *packet);
+  int add_rq(PACKET *packet), add_wq(PACKET *packet), add_pq(PACKET *packet),
+      add_cq(PACKET *packet);
 
   void return_data(PACKET *packet), operate(),
       increment_WQ_FULL(uint64_t address);
@@ -210,7 +218,7 @@ public:
                         uint32_t prefetch_metadata);
 
   void handle_fill(), handle_writeback(), handle_read(), handle_prefetch();
-  
+
   void add_mshr(PACKET *packet), update_fill_cycle(),
       llc_initialize_replacement(),
       update_replacement_state(uint32_t cpu, uint32_t set, uint32_t way,
@@ -270,7 +278,7 @@ public:
       timestamp_victim(uint32_t cpu, uint64_t instr_id, uint32_t set,
                        const BLOCK *current_set, uint64_t ip,
                        uint64_t full_addr, uint32_t type);
-      void commit_blocks();
+  void commit_blocks();
 };
 
 #endif

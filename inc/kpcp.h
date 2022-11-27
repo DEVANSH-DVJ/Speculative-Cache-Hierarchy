@@ -4,7 +4,7 @@
 #include "cache.h"
 
 // L2 SPP
-//#define L2_PF_DEBUG_PRINT
+// #define L2_PF_DEBUG_PRINT
 #ifdef L2_PF_DEBUG_PRINT
 #define L2_PF_DEBUG(x) x
 #else
@@ -20,7 +20,7 @@
 #define CDELTA_MAX 16
 #define CSIG_MAX 16
 #define L2_GHR_TRACK 8
-//#define L2_GHR_ON
+// #define L2_GHR_ON
 #define SIG_SHIFT 3
 #define SIG_LENGTH 12
 #define SIG_MASK ((1 << SIG_LENGTH) - 1)
@@ -89,8 +89,8 @@ int L2_ST_check(uint32_t cpu, uint64_t addr);
 void L2_PT_update(uint32_t cpu, int signature, int delta);
 void notify_sampler(uint32_t cpu, int64_t address, int dirty, int useful);
 
-//#include "cache.h"
-//#include "kpcp.h"
+// #include "cache.h"
+// #include "kpcp.h"
 
 SIGNATURE_TABLE L2_ST[NUM_CPUS][L2_ST_SET][L2_ST_WAY];
 PATTERN_TABLE L2_PT[NUM_CPUS][L2_PT_SET][L2_PT_WAY];

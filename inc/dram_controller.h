@@ -81,7 +81,8 @@ public:
   };
 
   // functions
-  int add_rq(PACKET *packet), add_wq(PACKET *packet), add_pq(PACKET *packet);
+  int add_rq(PACKET *packet), add_wq(PACKET *packet), add_pq(PACKET *packet),
+      add_cq(PACKET *packet);
 
   void return_data(PACKET *packet), operate(),
       increment_WQ_FULL(uint64_t address);

@@ -1,7 +1,6 @@
 #ifndef INSTRUCTION_H
 #define INSTRUCTION_H
 
-
 #define SPECULATIVE_BIT 1
 
 // instruction format

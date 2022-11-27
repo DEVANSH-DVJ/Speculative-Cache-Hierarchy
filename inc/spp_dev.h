@@ -7,7 +7,7 @@
 #define GHR_ON
 #define SPP_SANITY_CHECK
 
-//#define SPP_DEBUG_PRINT
+// #define SPP_DEBUG_PRINT
 #ifdef SPP_DEBUG_PRINT
 #define SPP_DP(x) x
 #else
