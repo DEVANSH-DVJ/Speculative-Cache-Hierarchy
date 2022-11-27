@@ -133,7 +133,7 @@ public:
   uint64_t total_miss_latency;
 
   // constructor
-  CACHE(string v1, uint32_t v2, int v3, uint32_t v2a, int v3a, uint32_t v4,
+  CACHE(string v1, uint32_t v2, int v3, uint32_t v4, uint32_t v2a, int v3a,
         uint32_t v5, uint32_t v6, uint32_t v7, uint32_t v8, uint32_t v9)
       : NAME(v1), NUM_SET(v2), NUM_WAY(v3), NUM_LINE(v4), NUM_SET_SPEC(v2a),
         NUM_WAY_SPEC(v3a), WQ_SIZE(v5), RQ_SIZE(v6), PQ_SIZE(v7), MSHR_SIZE(v8),
