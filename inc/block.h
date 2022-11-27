@@ -21,7 +21,8 @@ public:
   uint32_t lru;
 
   // Time stamp of instruction
-  uint32_t timestamp;
+  // uint32_t timestamp;
+  // Done by instr_id
 
   BLOCK() {
     valid = 0;
