@@ -145,6 +145,10 @@ public:
   uint64_t destination_virtual_address[NUM_INSTR_DESTINATIONS_SPARC];
   uint64_t source_virtual_address[NUM_INSTR_SOURCES];
 
+  // These are the translated physical addresses
+  uint64_t destination_physical_address[NUM_INSTR_DESTINATIONS_SPARC]; // output memory
+  uint64_t source_physical_address[NUM_INSTR_SOURCES];                 // input memory
+
   // these are instruction ids of other instructions in the window
   // uint32_t memory_instrs_i_depend_on[NUM_INSTR_SOURCES];
 
@@ -200,6 +204,7 @@ public:
       source_registers[i] = 0;
       source_memory[i] = 0;
       source_virtual_address[i] = 0;
+      source_physical_address[i] = 0;
       source_added[i] = 0;
       lq_index[i] = UINT32_MAX;
       reg_RAW_checked[i] = 0;
@@ -209,6 +214,7 @@ public:
       destination_memory[i] = 0;
       destination_registers[i] = 0;
       destination_virtual_address[i] = 0;
+      destination_physical_address[i] = 0;
       destination_added[i] = 0;
       sq_index[i] = UINT32_MAX;
       forwarding_index[i] = 0;

@@ -2180,13 +2180,13 @@ void CACHE::increment_WQ_FULL(uint64_t address) { WQ.FULL++; }
 void CACHE::commit_blocks() {
 
   int commit_counter = 0;
-  //cout << "Commit block starts: " << current_core_cycle[cpu] << endl;
+  // cout << "Commit block starts: " << current_core_cycle[cpu] << endl;
   while (commit_counter < COMMIT_WIDTH) {
 
     commit_counter++;
 
     if (CQ.occupancy == 0) {
-      return;
+      break;
     }
 
     // get the head packet
@@ -2251,7 +2251,7 @@ void CACHE::commit_blocks() {
     // remove the packet
     CQ.remove_queue(spec_packet);
   }
-  //cout << "Commit block ends: " << current_core_cycle[cpu] << endl;
+  // cout << "Commit block ends: " << current_core_cycle[cpu] << endl;
 }
 
 int CACHE::add_cq(PACKET *packet) {
@@ -2310,8 +2310,11 @@ int CACHE::add_cq(PACKET *packet) {
          << " current: " << current_core_cycle[CQ.entry[index].cpu] << endl;
   });
 
-  if (packet->address == 0)
+  if (packet->address == 0) {
+    cout << NAME << endl;
     assert(0);
+  }
+
 
   CQ.TO_CACHE++;
   CQ.ACCESS++;

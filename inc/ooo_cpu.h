@@ -238,6 +238,10 @@ public:
 
   // Speculative
   void commit_blocks(ooo_model_instr *arch_instr);
+  void commit_data_memory(ooo_model_instr *arch_instr);
+  void commit_instr_memory(ooo_model_instr *arch_instr);
+  void commit_itlb_memory(ooo_model_instr *arch_instr);
+  void commit_dtlb_memory(ooo_model_instr *arch_instr);
 };
 
 extern O3_CPU ooo_cpu[NUM_CPUS];
