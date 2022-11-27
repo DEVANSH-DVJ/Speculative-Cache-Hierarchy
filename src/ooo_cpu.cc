@@ -2688,6 +2688,7 @@ void O3_CPU::commit_blocks(ooo_model_instr *arch_instr) {
   if (L1D.CQ.occupancy < L1D.CQ.SIZE) {
     L1D.add_cq(&commit_packet);
   } else {
+    // cout << L1D.CQ.occupancy << " Size: " << L1D.CQ.SIZE << endl;
     assert(0); // If assert fails then need to handle this case.
   }
   // TO ADD from TLB ?

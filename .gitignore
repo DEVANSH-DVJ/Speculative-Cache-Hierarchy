@@ -13,3 +13,4 @@ inc/champsim.h.bak
 
 *.champsimtrace.xz
 results_1M/*/*/*.txt
+.DS_store

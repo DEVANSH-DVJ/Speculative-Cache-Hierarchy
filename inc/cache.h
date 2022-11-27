@@ -25,7 +25,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define ITLB_PQ_SIZE 0
 #define ITLB_MSHR_SIZE 8
 #define ITLB_LATENCY 1
-#define ITLB_CQ_SIZE 16
+#define ITLB_CQ_SIZE ITLB_RQ_SIZE * 5
 
 // DATA TLB
 #define DTLB_SET 16
@@ -37,7 +37,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define DTLB_PQ_SIZE 0
 #define DTLB_MSHR_SIZE 8
 #define DTLB_LATENCY 1
-#define DTLB_CQ_SIZE 16
+#define DTLB_CQ_SIZE DTLB_RQ_SIZE * 5
 
 // SECOND LEVEL TLB
 #define STLB_SET 128
@@ -49,7 +49,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define STLB_PQ_SIZE 0
 #define STLB_MSHR_SIZE 16
 #define STLB_LATENCY 8
-#define STLB_CQ_SIZE 32
+#define STLB_CQ_SIZE STLB_RQ_SIZE * 5
 
 // L1 INSTRUCTION CACHE
 #define L1I_SET 64
@@ -61,7 +61,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define L1I_PQ_SIZE 32
 #define L1I_MSHR_SIZE 8
 #define L1I_LATENCY 4
-#define L1I_CQ_SIZE 64
+#define L1I_CQ_SIZE L1I_RQ_SIZE * 5
 
 // L1 DATA CACHE
 #define L1D_SET 64
@@ -73,7 +73,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define L1D_PQ_SIZE 8
 #define L1D_MSHR_SIZE 16
 #define L1D_LATENCY 5
-#define L1D_CQ_SIZE 64
+#define L1D_CQ_SIZE L1D_RQ_SIZE * 5
 
 // L2 CACHE
 #define L2C_SET 1024
@@ -85,7 +85,7 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define L2C_PQ_SIZE 16
 #define L2C_MSHR_SIZE 32
 #define L2C_LATENCY 10 // 4/5 (L1I or L1D) + 10 = 14/15 cycles
-#define L2C_CQ_SIZE 32
+#define L2C_CQ_SIZE L2C_RQ_SIZE * 5
 
 // LAST LEVEL CACHE
 #define LLC_SET NUM_CPUS * 2048
@@ -97,7 +97,9 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 #define LLC_PQ_SIZE NUM_CPUS * 32
 #define LLC_MSHR_SIZE NUM_CPUS * 64
 #define LLC_LATENCY 20 // 4/5 (L1I or L1D) + 10 + 20 = 34/35 cycles
-#define LLC_CQ_SIZE NUM_CPUS *L2C_MSHR_SIZE
+#define LLC_CQ_SIZE NUM_CPUS *L2C_MSHR_SIZE * 5
+
+#define COMMIT_WIDTH 4
 
 class CACHE : public MEMORY {
 public:

@@ -270,7 +270,8 @@ void CACHE::handle_fill() {
         update_fill_cycle();
       }
     } else {
-      if (way == NUM_WAY) do_fill = 0;
+      if (way == NUM_WAY)
+        do_fill = 0;
       if (do_fill) {
         // COLLECT STATS
         sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
@@ -2191,70 +2192,79 @@ void CACHE::increment_WQ_FULL(uint64_t address) { WQ.FULL++; }
 
 void CACHE::commit_blocks() {
 
-  if (CQ.occupancy == 0) {
-    return;
-  }
+  int commit_counter = 0;
+  //cout << "Commit block starts: " << current_core_cycle[cpu] << endl;
+  while (commit_counter < COMMIT_WIDTH) {
 
-  // get the head packet
-  PACKET *spec_packet = &CQ.entry[CQ.head];
+    commit_counter++;
 
-  assert(spec_packet->is_speculative);
-
-  // check the event cycle
-  if (spec_packet->event_cycle < current_core_cycle[cpu]) {
-    // do nothing
-    return;
-  }
-
-  // check it it is a hit in spec cache
-  uint32_t set = get_set(spec_packet->address, SPECULATIVE_HIERARCHY);
-  int way = check_hit(spec_packet, SPECULATIVE_HIERARCHY);
-
-  if (way > 0) {
-    // move to normal heirarchy
-    uint32_t target_set, target_way;
-
-    target_set = get_set(spec_packet->address, NORMAL_HIERARCHY);
-    if (cache_type == IS_LLC) {
-      target_way =
-          llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
-                          block[target_set], spec_packet->ip,
-                          spec_packet->full_addr, spec_packet->type);
-    } else {
-      target_way = find_victim(spec_packet->cpu, spec_packet->instr_id,
-                               target_set, block[target_set], spec_packet->ip,
-                               spec_packet->full_addr, spec_packet->type);
+    if (CQ.occupancy == 0) {
+      return;
     }
 
-    PACKET fill_packet;
-    fill_packet.delta = spec_block[set][way].delta;
-    fill_packet.depth = spec_block[set][way].depth;
-    fill_packet.signature = spec_block[set][way].signature;
-    fill_packet.confidence = spec_block[set][way].confidence;
-    fill_packet.address = spec_block[set][way].tag;
-    fill_packet.full_addr = spec_block[set][way].full_addr;
-    fill_packet.data = spec_block[set][way].data;
-    fill_packet.ip = spec_block[set][way].ip;
-    fill_packet.cpu = spec_block[set][way].cpu;
-    fill_packet.instr_id = spec_block[set][way].instr_id;
+    // get the head packet
+    PACKET *spec_packet = &CQ.entry[CQ.head];
 
-    fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
+    assert(spec_packet->is_speculative);
 
-    // @Sameer: Can we mark the speculative block as available?
-  }
+    // check the event cycle
+    // if (spec_packet->event_cycle < current_core_cycle[cpu]) {
+    //   // do nothing
+    //   continue;
+    //   ;
+    // }
 
-  // If this is not the last level, then send the request to next lower level
+    // check it it is a hit in spec cache
+    uint32_t set = get_set(spec_packet->address, SPECULATIVE_HIERARCHY);
+    int way = check_hit(spec_packet, SPECULATIVE_HIERARCHY);
 
-  if (cache_type != IS_LLC && cache_type != IS_STLB) {
-    if (lower_level->CQ.occupancy < lower_level->CQ.SIZE) {
-      lower_level->add_cq(spec_packet);
-    } else {
-      assert(0); // If assert fails then need to handle this case.
+    if (way > 0) {
+      // move to normal heirarchy
+      uint32_t target_set, target_way;
+
+      target_set = get_set(spec_packet->address, NORMAL_HIERARCHY);
+      if (cache_type == IS_LLC) {
+        target_way =
+            llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
+                            block[target_set], spec_packet->ip,
+                            spec_packet->full_addr, spec_packet->type);
+      } else {
+        target_way = find_victim(spec_packet->cpu, spec_packet->instr_id,
+                                 target_set, block[target_set], spec_packet->ip,
+                                 spec_packet->full_addr, spec_packet->type);
+      }
+
+      PACKET fill_packet;
+      fill_packet.delta = spec_block[set][way].delta;
+      fill_packet.depth = spec_block[set][way].depth;
+      fill_packet.signature = spec_block[set][way].signature;
+      fill_packet.confidence = spec_block[set][way].confidence;
+      fill_packet.address = spec_block[set][way].tag;
+      fill_packet.full_addr = spec_block[set][way].full_addr;
+      fill_packet.data = spec_block[set][way].data;
+      fill_packet.ip = spec_block[set][way].ip;
+      fill_packet.cpu = spec_block[set][way].cpu;
+      fill_packet.instr_id = spec_block[set][way].instr_id;
+
+      fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
+
+      // @Sameer: Can we mark the speculative block as available?
     }
-  }
 
-  // remove the packet
-  CQ.remove_queue(spec_packet);
+    // If this is not the last level, then send the request to next lower level
+
+    if (cache_type != IS_LLC && cache_type != IS_STLB) {
+      if (lower_level->CQ.occupancy < lower_level->CQ.SIZE) {
+        lower_level->add_cq(spec_packet);
+      } else {
+        assert(0); // If assert fails then need to handle this case.
+      }
+    }
+
+    // remove the packet
+    CQ.remove_queue(spec_packet);
+  }
+  //cout << "Commit block ends: " << current_core_cycle[cpu] << endl;
 }
 
 int CACHE::add_cq(PACKET *packet) {
