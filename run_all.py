@@ -26,8 +26,8 @@ if __name__ == '__main__':
 
     filename = sys.argv[1]
 
-    for model in models:
-        build(model)
+    # for model in models:
+    #     build(model)
 
     traces = []
     with open(os.path.join(BASE_DIR, filename)) as f:
