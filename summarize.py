@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -27,12 +28,18 @@ if __name__ == '__main__':
         sys.exit(1)
 
     filename = sys.argv[1]
+    out_file = open("results.csv",'w')
 
     results = []
     with open(os.path.join(BASE_DIR, filename)) as f:
         for line in f:
             results.append(line.strip())
 
+
     print(results)
+    writer = csv.writer(out_file)
     print('Total results: {}'.format(len(results)))
+    for row in results:
+        writer.writerow(extract(row))
     print(extract(results[0]))
+    out_file.close
