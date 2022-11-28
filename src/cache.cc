@@ -19,7 +19,7 @@ void CACHE::handle_fill() {
 #endif
 
     uint32_t mshr_index = MSHR.next_fill_index;
-    uint8_t cache_nature = MSHR.entry[mshr_index].is_speculative ;
+    uint8_t cache_nature = MSHR.entry[mshr_index].is_speculative;
 
     // find victim
     uint32_t set, way;
@@ -43,11 +43,12 @@ void CACHE::handle_fill() {
       //                   MSHR.entry[mshr_index].full_addr,
       //                   MSHR.entry[mshr_index].instr_id);
       if (NUM_SET_SPEC != 0)
-      way = timestamp_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set,
-                             spec_block[set], MSHR.entry[mshr_index].ip,
-                             MSHR.entry[mshr_index].full_addr,
-                             MSHR.entry[mshr_index].type);
-      else way = 0;
+        way = timestamp_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set,
+                               spec_block[set], MSHR.entry[mshr_index].ip,
+                               MSHR.entry[mshr_index].full_addr,
+                               MSHR.entry[mshr_index].type);
+      else
+        way = 0;
     }
 
 #ifdef LLC_BYPASS
@@ -273,11 +274,11 @@ void CACHE::handle_fill() {
         update_fill_cycle();
       }
     }
-    
+
     // Cache nature is speculative hierarchy
     else {
       // Miss due to timestamp being larger than others, hence, cant replace.
-      if (way == NUM_WAY_SPEC){
+      if (way == NUM_WAY_SPEC) {
         do_fill = 0;
         // way = 0;
       }
@@ -287,8 +288,8 @@ void CACHE::handle_fill() {
         spec_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
         spec_access[fill_cpu][MSHR.entry[mshr_index].type]++;
 
-        if (NUM_SET_SPEC != 0) fill_cache(set, way, &MSHR.entry[mshr_index], cache_nature);
-
+        if (NUM_SET_SPEC != 0)
+          fill_cache(set, way, &MSHR.entry[mshr_index], cache_nature);
 
         // RFO marks cache line dirty
         if (cache_type == IS_L1D) {
@@ -353,14 +354,13 @@ void CACHE::handle_fill() {
           */
           total_miss_latency += current_miss_latency;
         }
-          MSHR.remove_queue(&MSHR.entry[mshr_index]);
-          MSHR.num_returned--;
+        MSHR.remove_queue(&MSHR.entry[mshr_index]);
+        MSHR.num_returned--;
 
-      }
-      else{
-          PACKET temp_packet = MSHR.entry[mshr_index];
-          MSHR.remove_queue(&MSHR.entry[mshr_index]);
-          add_mshr(&temp_packet);
+      } else {
+        PACKET temp_packet = MSHR.entry[mshr_index];
+        MSHR.remove_queue(&MSHR.entry[mshr_index]);
+        add_mshr(&temp_packet);
       }
 
       update_fill_cycle();
@@ -697,7 +697,7 @@ void CACHE::handle_read() {
       // access cache
       uint32_t set = get_set(RQ.entry[index].address, NORMAL_HIERARCHY);
       int way = check_hit(&RQ.entry[index], NORMAL_HIERARCHY);
-      uint8_t cache_nature = RQ.entry[index].is_speculative ;
+      uint8_t cache_nature = RQ.entry[index].is_speculative;
 
       if (way >= 0) { // read hit in normal hierarchy
 
@@ -797,7 +797,8 @@ void CACHE::handle_read() {
         // // Valid only if timestamp of request exceeds block timestamp
         // way = (blk_timestamp <= RQ.entry[index].instr_id) ? way : 0
 
-        if ((NUM_SET_SPEC != 0) && (way >= 0)) { // read hit in speculative hierarchy
+        if ((NUM_SET_SPEC != 0) &&
+            (way >= 0)) { // read hit in speculative hierarchy
 
           if (cache_type == IS_ITLB) {
             RQ.entry[index].instruction_pa = spec_block[set][way].data;
@@ -1036,16 +1037,16 @@ void CACHE::handle_read() {
 
           if (miss_handled) {
             // update prefetcher on load instruction
-            if (cache_nature == NORMAL_HIERARCHY){
+            if (cache_nature == NORMAL_HIERARCHY) {
 
               if (RQ.entry[index].type == LOAD) {
                 if (cache_type == IS_L1I)
                   l1i_prefetcher_cache_operate(read_cpu, RQ.entry[index].ip, 0,
-                                              0);
+                                               0);
                 if (cache_type == IS_L1D)
                   l1d_prefetcher_operate(RQ.entry[index].full_addr,
-                                        RQ.entry[index].ip, 0,
-                                        RQ.entry[index].type);
+                                         RQ.entry[index].ip, 0,
+                                         RQ.entry[index].type);
                 if (cache_type == IS_L2C)
                   l2c_prefetcher_operate(
                       RQ.entry[index].address << LOG2_BLOCK_SIZE,
@@ -1329,9 +1330,9 @@ void CACHE::operate() {
 uint32_t CACHE::get_set(uint64_t address, uint8_t cache_nature) {
   if (cache_nature == NORMAL_HIERARCHY)
     return (uint32_t)(address & ((1 << lg2(NUM_SET)) - 1));
-  else
-  {
-    if (NUM_SET_SPEC == 0) return 0;
+  else {
+    if (NUM_SET_SPEC == 0)
+      return 0;
     return (uint32_t)(address & ((1 << lg2(NUM_SET_SPEC)) - 1));
   }
 }
@@ -1343,14 +1344,15 @@ uint32_t CACHE::get_way(uint64_t address, uint32_t set, uint8_t cache_nature) {
         return way;
     }
   } else {
-    if (NUM_SET_SPEC == 0) return NUM_WAY_SPEC;
+    if (NUM_SET_SPEC == 0)
+      return NUM_WAY_SPEC;
     for (uint32_t way = 0; way < NUM_WAY_SPEC; way++) {
       if (spec_block[set][way].valid && (spec_block[set][way].tag == address))
         return way;
     }
   }
 
-  return NUM_WAY+NUM_WAY_SPEC;
+  return NUM_WAY + NUM_WAY_SPEC;
 }
 
 void CACHE::fill_cache(uint32_t set, uint32_t way, PACKET *packet,
@@ -1473,7 +1475,8 @@ int CACHE::check_hit(PACKET *packet, uint8_t cache_nature) {
       }
     }
   } else {
-    if (NUM_SET_SPEC == 0) return NUM_WAY_SPEC;
+    if (NUM_SET_SPEC == 0)
+      return NUM_WAY_SPEC;
     if (NUM_SET_SPEC < set) {
       cerr << "[" << NAME << "_ERROR] " << __func__
            << " invalid set index: " << set << " NUM_SET: " << NUM_SET;
@@ -2226,13 +2229,14 @@ void CACHE::commit_blocks() {
         target_set = get_set(spec_packet->address, NORMAL_HIERARCHY);
         if (cache_type == IS_LLC) {
           target_way =
-              llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
-                              block[target_set], spec_packet->ip,
+              llc_find_victim(spec_packet->cpu, spec_packet->instr_id,
+                              target_set, block[target_set], spec_packet->ip,
                               spec_packet->full_addr, spec_packet->type);
         } else {
-          target_way = find_victim(spec_packet->cpu, spec_packet->instr_id,
-                                  target_set, block[target_set], spec_packet->ip,
-                                  spec_packet->full_addr, spec_packet->type);
+          target_way =
+              find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
+                          block[target_set], spec_packet->ip,
+                          spec_packet->full_addr, spec_packet->type);
         }
 
         PACKET fill_packet;
@@ -2248,19 +2252,17 @@ void CACHE::commit_blocks() {
         fill_packet.instr_id = spec_block[set][way].instr_id;
 
         fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
-        
+
         spec_commit_transfers[cpu]++;
 
         // @Sameer: Can we mark the speculative block as available?
         // Yes, invalidating it
         spec_block[set][way].valid = 0;
-      
-      }
-      else {
+
+      } else {
         spec_block[set][way].valid = 0; // invalidate
         spec_squash[cpu]++;
       }
-
     }
 
     // If this is not the last level, then send the request to next lower level
@@ -2339,7 +2341,6 @@ int CACHE::add_cq(PACKET *packet) {
     cout << NAME << endl;
     assert(0);
   }
-
 
   CQ.TO_CACHE++;
   CQ.ACCESS++;

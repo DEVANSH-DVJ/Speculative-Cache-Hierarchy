@@ -2229,9 +2229,11 @@ void O3_CPU::complete_data_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
       RTS1_tail++;
       if (RTS1_tail == SQ_SIZE)
         RTS1_tail = 0;
-      
+
       // store the physical address in ROB
-      ROB.entry[rob_index].destination_physical_address[SQ.entry[sq_index].data_index] = SQ.entry[sq_index].physical_address;
+      ROB.entry[rob_index]
+          .destination_physical_address[SQ.entry[sq_index].data_index] =
+          SQ.entry[sq_index].physical_address;
 
       DP(if (warmup_complete[cpu]) {
         cout << "[ROB] " << __func__
@@ -2258,7 +2260,9 @@ void O3_CPU::complete_data_fetch(PACKET_QUEUE *queue, uint8_t is_it_tlb) {
       if (RTL1_tail == LQ_SIZE)
         RTL1_tail = 0;
 
-      ROB.entry[rob_index].source_physical_address[LQ.entry[lq_index].data_index] = LQ.entry[lq_index].physical_address;
+      ROB.entry[rob_index]
+          .source_physical_address[LQ.entry[lq_index].data_index] =
+          LQ.entry[lq_index].physical_address;
 
       DP(if (warmup_complete[cpu]) {
         cout << "[RTL1] " << __func__
@@ -2671,12 +2675,13 @@ void O3_CPU::update_spec_blocks(ooo_model_instr *arch_instr, int commit_flag) {
 }
 
 // Commits memory operations
-void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_flag) {
+void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr,
+                                     int commit_flag) {
 
   for (uint32_t i = 0; i < NUM_INSTR_SOURCES; i++) {
 
     if (arch_instr->source_physical_address[i]) {
-  
+
       PACKET commit_packet;
       commit_packet.is_speculative = 1; //* L0_SPEC
       commit_packet.instruction = 1;
@@ -2684,7 +2689,8 @@ void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_fla
 
       commit_packet.fill_level = FILL_L1; //* L0I_CACHE
       commit_packet.cpu = cpu;
-      commit_packet.address =  arch_instr->source_physical_address[i] >> LOG2_BLOCK_SIZE;
+      commit_packet.address =
+          arch_instr->source_physical_address[i] >> LOG2_BLOCK_SIZE;
       commit_packet.instruction_pa = arch_instr->instruction_pa;
       commit_packet.full_addr = arch_instr->source_physical_address[i];
 
@@ -2692,7 +2698,8 @@ void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_fla
       commit_packet.rob_index = 0;
       commit_packet.producer = 0;
       commit_packet.ip =
-          arch_instr->ip; // but the instruction is now committed from the ROB ??
+          arch_instr
+              ->ip; // but the instruction is now committed from the ROB ??
       commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
@@ -2711,7 +2718,7 @@ void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_fla
   for (uint32_t i = 0; i < NUM_INSTR_DESTINATIONS_SPARC; i++) {
 
     if (arch_instr->destination_physical_address[i]) {
-  
+
       PACKET commit_packet;
       commit_packet.is_speculative = 1; //* L0_SPEC
       commit_packet.instruction = 1;
@@ -2719,7 +2726,8 @@ void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_fla
 
       commit_packet.fill_level = FILL_L1; //* L0I_CACHE
       commit_packet.cpu = cpu;
-      commit_packet.address =  arch_instr->destination_physical_address[i] >> LOG2_BLOCK_SIZE;
+      commit_packet.address =
+          arch_instr->destination_physical_address[i] >> LOG2_BLOCK_SIZE;
       commit_packet.instruction_pa = arch_instr->instruction_pa;
       commit_packet.full_addr = arch_instr->destination_physical_address[i];
 
@@ -2727,7 +2735,8 @@ void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_fla
       commit_packet.rob_index = 0;
       commit_packet.producer = 0;
       commit_packet.ip =
-          arch_instr->ip; // but the instruction is now committed from the ROB ??
+          arch_instr
+              ->ip; // but the instruction is now committed from the ROB ??
       commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
@@ -2744,80 +2753,82 @@ void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_fla
   }
 }
 
-  // Commits memory operations
-void O3_CPU::update_spec_instr_memory(ooo_model_instr *arch_instr, int commit_flag) {
+// Commits memory operations
+void O3_CPU::update_spec_instr_memory(ooo_model_instr *arch_instr,
+                                      int commit_flag) {
 
-    PACKET commit_packet;
-    commit_packet.is_speculative = 1; //* L0_SPEC
-    commit_packet.instruction = 1;
-    commit_packet.is_data = 0;
+  PACKET commit_packet;
+  commit_packet.is_speculative = 1; //* L0_SPEC
+  commit_packet.instruction = 1;
+  commit_packet.is_data = 0;
 
-    commit_packet.fill_level = FILL_L1; //* L0I_CACHE
-    commit_packet.cpu = cpu;
-    commit_packet.address =  arch_instr->instruction_pa >> LOG2_BLOCK_SIZE;
-    commit_packet.instruction_pa = arch_instr->instruction_pa;
-    commit_packet.full_addr = arch_instr->instruction_pa;
+  commit_packet.fill_level = FILL_L1; //* L0I_CACHE
+  commit_packet.cpu = cpu;
+  commit_packet.address = arch_instr->instruction_pa >> LOG2_BLOCK_SIZE;
+  commit_packet.instruction_pa = arch_instr->instruction_pa;
+  commit_packet.full_addr = arch_instr->instruction_pa;
 
-    commit_packet.instr_id = arch_instr->instr_id;
-    commit_packet.rob_index = 0;
-    commit_packet.producer = 0;
-    commit_packet.ip =
-        arch_instr->ip; // but the instruction is now committed from the ROB ??
-    commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
-    commit_packet.asid[0] = 0;
-    commit_packet.asid[1] = 0;
-    commit_packet.event_cycle = current_core_cycle[cpu];
+  commit_packet.instr_id = arch_instr->instr_id;
+  commit_packet.rob_index = 0;
+  commit_packet.producer = 0;
+  commit_packet.ip =
+      arch_instr->ip; // but the instruction is now committed from the ROB ??
+  commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
+  commit_packet.asid[0] = 0;
+  commit_packet.asid[1] = 0;
+  commit_packet.event_cycle = current_core_cycle[cpu];
 
-    // to be sent to the cache
-    if (L1I.CQ.occupancy < L1I.CQ.SIZE) {
-      L1I.add_cq(&commit_packet);
-    } else {
-      // cout << L1D.CQ.occupancy << " Size: " << L1D.CQ.SIZE << endl;
-      assert(0); // If assert fails then need to handle this case.
-    }
+  // to be sent to the cache
+  if (L1I.CQ.occupancy < L1I.CQ.SIZE) {
+    L1I.add_cq(&commit_packet);
+  } else {
+    // cout << L1D.CQ.occupancy << " Size: " << L1D.CQ.SIZE << endl;
+    assert(0); // If assert fails then need to handle this case.
+  }
 }
-
-  // Commits memory operations
-void O3_CPU::update_spec_itlb_memory(ooo_model_instr *arch_instr, int commit_flag) {
-
-    PACKET commit_packet;
-    commit_packet.is_speculative = 1; 
-    commit_packet.instruction = 1;
-    commit_packet.is_data = 0;
-
-    commit_packet.fill_level = FILL_L1; //* Doesn't matter
-    commit_packet.cpu = cpu;
-    commit_packet.address =  arch_instr->ip >> LOG2_PAGE_SIZE;
-    commit_packet.instruction_pa = arch_instr->instruction_pa;
-    commit_packet.full_addr = arch_instr->ip;
-
-    commit_packet.instr_id = arch_instr->instr_id;
-    commit_packet.rob_index = 0;
-    commit_packet.producer = 0;
-    commit_packet.ip =
-        arch_instr->ip; // but the instruction is now committed from the ROB ??
-    commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
-    commit_packet.asid[0] = 0;
-    commit_packet.asid[1] = 0;
-    commit_packet.event_cycle = current_core_cycle[cpu];
-
-    // to be sent to the cache
-    if (ITLB.CQ.occupancy < ITLB.CQ.SIZE) {
-      ITLB.add_cq(&commit_packet);
-    } else {
-      // cout << L1D.CQ.occupancy << " Size: " << L1D.CQ.SIZE << endl;
-      assert(0); // If assert fails then need to handle this case.
-    }
-}
-
 
 // Commits memory operations
-void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr, int commit_flag) {
+void O3_CPU::update_spec_itlb_memory(ooo_model_instr *arch_instr,
+                                     int commit_flag) {
+
+  PACKET commit_packet;
+  commit_packet.is_speculative = 1;
+  commit_packet.instruction = 1;
+  commit_packet.is_data = 0;
+
+  commit_packet.fill_level = FILL_L1; //* Doesn't matter
+  commit_packet.cpu = cpu;
+  commit_packet.address = arch_instr->ip >> LOG2_PAGE_SIZE;
+  commit_packet.instruction_pa = arch_instr->instruction_pa;
+  commit_packet.full_addr = arch_instr->ip;
+
+  commit_packet.instr_id = arch_instr->instr_id;
+  commit_packet.rob_index = 0;
+  commit_packet.producer = 0;
+  commit_packet.ip =
+      arch_instr->ip; // but the instruction is now committed from the ROB ??
+  commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
+  commit_packet.asid[0] = 0;
+  commit_packet.asid[1] = 0;
+  commit_packet.event_cycle = current_core_cycle[cpu];
+
+  // to be sent to the cache
+  if (ITLB.CQ.occupancy < ITLB.CQ.SIZE) {
+    ITLB.add_cq(&commit_packet);
+  } else {
+    // cout << L1D.CQ.occupancy << " Size: " << L1D.CQ.SIZE << endl;
+    assert(0); // If assert fails then need to handle this case.
+  }
+}
+
+// Commits memory operations
+void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr,
+                                     int commit_flag) {
 
   for (uint32_t i = 0; i < NUM_INSTR_SOURCES; i++) {
 
     if (arch_instr->source_virtual_address[i]) {
-  
+
       PACKET commit_packet;
       commit_packet.is_speculative = 1; //* L0_SPEC
       commit_packet.instruction = 1;
@@ -2825,7 +2836,8 @@ void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr, int commit_fla
 
       commit_packet.fill_level = FILL_L1; //* L0I_CACHE
       commit_packet.cpu = cpu;
-      commit_packet.address =  arch_instr->source_virtual_address[i] >> LOG2_PAGE_SIZE;
+      commit_packet.address =
+          arch_instr->source_virtual_address[i] >> LOG2_PAGE_SIZE;
       commit_packet.instruction_pa = arch_instr->instruction_pa;
       commit_packet.full_addr = arch_instr->source_virtual_address[i];
 
@@ -2833,7 +2845,8 @@ void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr, int commit_fla
       commit_packet.rob_index = 0;
       commit_packet.producer = 0;
       commit_packet.ip =
-          arch_instr->ip; // but the instruction is now committed from the ROB ??
+          arch_instr
+              ->ip; // but the instruction is now committed from the ROB ??
       commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
@@ -2852,7 +2865,7 @@ void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr, int commit_fla
   for (uint32_t i = 0; i < NUM_INSTR_DESTINATIONS_SPARC; i++) {
 
     if (arch_instr->destination_virtual_address[i]) {
-  
+
       PACKET commit_packet;
       commit_packet.is_speculative = 1; //* L0_SPEC
       commit_packet.instruction = 1;
@@ -2860,7 +2873,8 @@ void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr, int commit_fla
 
       commit_packet.fill_level = FILL_L1; //* L0I_CACHE
       commit_packet.cpu = cpu;
-      commit_packet.address =  arch_instr->destination_virtual_address[i] >> LOG2_PAGE_SIZE;
+      commit_packet.address =
+          arch_instr->destination_virtual_address[i] >> LOG2_PAGE_SIZE;
       commit_packet.instruction_pa = arch_instr->instruction_pa;
       commit_packet.full_addr = arch_instr->destination_virtual_address[i];
 
@@ -2868,7 +2882,8 @@ void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr, int commit_fla
       commit_packet.rob_index = 0;
       commit_packet.producer = 0;
       commit_packet.ip =
-          arch_instr->ip; // but the instruction is now committed from the ROB ??
+          arch_instr
+              ->ip; // but the instruction is now committed from the ROB ??
       commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
