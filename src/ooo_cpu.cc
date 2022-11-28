@@ -638,7 +638,7 @@ void O3_CPU::fetch_instruction() {
       else
         trace_packet.address = IFETCH_BUFFER.entry[index].ip >> LOG2_PAGE_SIZE;
       trace_packet.full_addr = IFETCH_BUFFER.entry[index].ip;
-      trace_packet.instr_id = 0;
+      trace_packet.instr_id = IFETCH_BUFFER.entry[index].instr_id;
       trace_packet.rob_index = i;
       trace_packet.producer = 0; // TODO: check if this guy gets used or not
       trace_packet.ip = IFETCH_BUFFER.entry[index].ip;
@@ -742,7 +742,7 @@ void O3_CPU::fetch_instruction() {
       fetch_packet.address = IFETCH_BUFFER.entry[index].instruction_pa >> 6;
       fetch_packet.instruction_pa = IFETCH_BUFFER.entry[index].instruction_pa;
       fetch_packet.full_addr = IFETCH_BUFFER.entry[index].instruction_pa;
-      fetch_packet.instr_id = 0;
+      fetch_packet.instr_id = IFETCH_BUFFER.entry[index].instr_id;
       fetch_packet.rob_index = 0;
       fetch_packet.producer = 0;
       fetch_packet.ip = IFETCH_BUFFER.entry[index].ip;
