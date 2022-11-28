@@ -18,7 +18,7 @@ using namespace std;
 #define EXEC_WIDTH 6
 #define LQ_WIDTH 2
 #define SQ_WIDTH 2
-#define RETIRE_WIDTH 4
+#define RETIRE_WIDTH COMMIT_WIDTH // 4
 #define SCHEDULER_SIZE 128
 #define BRANCH_MISPREDICT_PENALTY 1
 // #define SCHEDULING_LATENCY 0
