@@ -18,8 +18,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 // INSTRUCTION TLB
 #define ITLB_SET 16
 #define ITLB_WAY 4
-#define ITLB_SET_S 16
-#define ITLB_WAY_S 4
+#define ITLB_SET_SPEC 16
+#define ITLB_WAY_SPEC 4
 #define ITLB_RQ_SIZE 16
 #define ITLB_WQ_SIZE 16
 #define ITLB_PQ_SIZE 0
@@ -30,8 +30,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 // DATA TLB
 #define DTLB_SET 16
 #define DTLB_WAY 4
-#define DTLB_SET_S 16
-#define DTLB_WAY_S 4
+#define DTLB_SET_SPEC 16
+#define DTLB_WAY_SPEC 4
 #define DTLB_RQ_SIZE 16
 #define DTLB_WQ_SIZE 16
 #define DTLB_PQ_SIZE 0
@@ -42,8 +42,8 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 // SECOND LEVEL TLB
 #define STLB_SET 128
 #define STLB_WAY 12
-#define STLB_SET_S 16
-#define STLB_WAY_S 4
+#define STLB_SET_SPEC 16
+#define STLB_WAY_SPEC 4
 #define STLB_RQ_SIZE 32
 #define STLB_WQ_SIZE 32
 #define STLB_PQ_SIZE 0
@@ -53,9 +53,9 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 
 // L1 INSTRUCTION CACHE
 #define L1I_SET 64
-#define L1I_SET_S 64
+#define L1I_SET_SPEC 64
 #define L1I_WAY 8
-#define L1I_WAY_S 8
+#define L1I_WAY_SPEC 8
 #define L1I_RQ_SIZE 64
 #define L1I_WQ_SIZE 64
 #define L1I_PQ_SIZE 32
@@ -65,9 +65,9 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 
 // L1 DATA CACHE
 #define L1D_SET 64
-#define L1D_SET_S 64
+#define L1D_SET_SPEC 64
 #define L1D_WAY 12
-#define L1D_WAY_S 12
+#define L1D_WAY_SPEC 12
 #define L1D_RQ_SIZE 64
 #define L1D_WQ_SIZE 64
 #define L1D_PQ_SIZE 8
@@ -77,9 +77,9 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 
 // L2 CACHE
 #define L2C_SET 1024
-#define L2C_SET_S 1024
+#define L2C_SET_SPEC 1024
 #define L2C_WAY 8
-#define L2C_WAY_S 8
+#define L2C_WAY_SPEC 8
 #define L2C_RQ_SIZE 32
 #define L2C_WQ_SIZE 32
 #define L2C_PQ_SIZE 16
@@ -89,9 +89,9 @@ extern uint32_t PAGE_TABLE_LATENCY, SWAP_LATENCY;
 
 // LAST LEVEL CACHE
 #define LLC_SET NUM_CPUS * 2048
-#define LLC_SET_S LLC_SET
+#define LLC_SET_SPEC LLC_SET
 #define LLC_WAY 16
-#define LLC_WAY_S 16
+#define LLC_WAY_SPEC 16
 #define LLC_RQ_SIZE NUM_CPUS *L2C_MSHR_SIZE // 48
 #define LLC_WQ_SIZE NUM_CPUS *L2C_MSHR_SIZE // 48
 #define LLC_PQ_SIZE NUM_CPUS * 32

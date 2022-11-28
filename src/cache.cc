@@ -19,7 +19,7 @@ void CACHE::handle_fill() {
 #endif
 
     uint32_t mshr_index = MSHR.next_fill_index;
-    uint8_t cache_nature = (NUM_SET_SPEC > 0) ? MSHR.entry[mshr_index].is_speculative : NORMAL_HIERARCHY;
+    uint8_t cache_nature = MSHR.entry[mshr_index].is_speculative ;
 
     // find victim
     uint32_t set, way;
@@ -37,7 +37,7 @@ void CACHE::handle_fill() {
                           MSHR.entry[mshr_index].type);
     } else {
       // Speculative hierarchy
-      set = get_set(MSHR.entry[mshr_index].address, NORMAL_HIERARCHY);
+      set = get_set(MSHR.entry[mshr_index].address, SPECULATIVE_HIERARCHY);
       // way = find_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set,
       //                   block[set], MSHR.entry[mshr_index].ip,
       //                   MSHR.entry[mshr_index].full_addr,
@@ -47,6 +47,7 @@ void CACHE::handle_fill() {
                              spec_block[set], MSHR.entry[mshr_index].ip,
                              MSHR.entry[mshr_index].full_addr,
                              MSHR.entry[mshr_index].type);
+      else way = 0;
     }
 
 #ifdef LLC_BYPASS
@@ -277,8 +278,8 @@ void CACHE::handle_fill() {
     else {
       // Miss due to timestamp being larger than others, hence, cant replace.
       if (way == NUM_WAY_SPEC){
-        // do_fill = 0;
-        way = 0;
+        do_fill = 0;
+        // way = 0;
       }
       if (do_fill) {
 
@@ -356,6 +357,11 @@ void CACHE::handle_fill() {
           MSHR.num_returned--;
 
       }
+      else{
+          PACKET temp_packet = MSHR.entry[mshr_index];
+          MSHR.remove_queue(&MSHR.entry[mshr_index]);
+          add_mshr(&temp_packet);
+      }
 
       update_fill_cycle();
     }
@@ -376,7 +382,7 @@ void CACHE::handle_writeback() {
     // access cache
     uint32_t set = get_set(WQ.entry[index].address, NORMAL_HIERARCHY);
     int way = check_hit(&WQ.entry[index], NORMAL_HIERARCHY);
-    uint8_t cache_nature = (NUM_SET_SPEC > 0) ? WQ.entry[index].is_speculative : NORMAL_HIERARCHY;
+    uint8_t cache_nature = WQ.entry[index].is_speculative;
     assert(cache_nature == NORMAL_HIERARCHY);
 
     if (way >= 0) { // writeback hit (or RFO hit for L1D)
@@ -691,7 +697,7 @@ void CACHE::handle_read() {
       // access cache
       uint32_t set = get_set(RQ.entry[index].address, NORMAL_HIERARCHY);
       int way = check_hit(&RQ.entry[index], NORMAL_HIERARCHY);
-      uint8_t cache_nature = (NUM_SET_SPEC > 0) ? RQ.entry[index].is_speculative : NORMAL_HIERARCHY;
+      uint8_t cache_nature = RQ.entry[index].is_speculative ;
 
       if (way >= 0) { // read hit in normal hierarchy
 

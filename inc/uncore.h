@@ -13,7 +13,7 @@ class UNCORE {
 public:
   // LLC
   CACHE LLC{"LLC",       LLC_SET,       LLC_WAY,     LLC_SET *LLC_WAY,
-            LLC_SET_S,   LLC_WAY_S,     LLC_WQ_SIZE, LLC_RQ_SIZE,
+            LLC_SET_SPEC,   LLC_WAY_SPEC,     LLC_WQ_SIZE, LLC_RQ_SIZE,
             LLC_PQ_SIZE, LLC_MSHR_SIZE, LLC_CQ_SIZE};
 
   // DRAM

@@ -87,22 +87,22 @@ public:
 
   // TLBs and caches
   CACHE ITLB{"ITLB",       ITLB_SET,       ITLB_WAY,     ITLB_SET *ITLB_WAY,
-             ITLB_SET_S,   ITLB_WAY_S,     ITLB_WQ_SIZE, ITLB_RQ_SIZE,
+             ITLB_SET_SPEC,   ITLB_WAY_SPEC,     ITLB_WQ_SIZE, ITLB_RQ_SIZE,
              ITLB_PQ_SIZE, ITLB_MSHR_SIZE, ITLB_CQ_SIZE},
       DTLB{"DTLB",       DTLB_SET,       DTLB_WAY,     DTLB_SET *DTLB_WAY,
-           DTLB_SET_S,   DTLB_WAY_S,     DTLB_WQ_SIZE, DTLB_RQ_SIZE,
+           DTLB_SET_SPEC,   DTLB_WAY_SPEC,     DTLB_WQ_SIZE, DTLB_RQ_SIZE,
            DTLB_PQ_SIZE, DTLB_MSHR_SIZE, DTLB_CQ_SIZE},
       STLB{"STLB",       STLB_SET,       STLB_WAY,     STLB_SET *STLB_WAY,
-           STLB_SET_S,   STLB_WAY_S,     STLB_WQ_SIZE, STLB_RQ_SIZE,
+           STLB_SET_SPEC,   STLB_WAY_SPEC,     STLB_WQ_SIZE, STLB_RQ_SIZE,
            STLB_PQ_SIZE, STLB_MSHR_SIZE, STLB_CQ_SIZE},
       L1I{"L1I",       L1I_SET,       L1I_WAY,     L1I_SET *L1I_WAY,
-          L1I_SET_S,   L1I_WAY_S,     L1I_WQ_SIZE, L1I_RQ_SIZE,
+          L1I_SET_SPEC,   L1I_WAY_SPEC,     L1I_WQ_SIZE, L1I_RQ_SIZE,
           L1I_PQ_SIZE, L1I_MSHR_SIZE, L1I_CQ_SIZE},
       L1D{"L1D",       L1D_SET,       L1D_WAY,     L1D_SET *L1D_WAY,
-          L1D_SET_S,   L1D_WAY_S,     L1D_WQ_SIZE, L1D_RQ_SIZE,
+          L1D_SET_SPEC,   L1D_WAY_SPEC,     L1D_WQ_SIZE, L1D_RQ_SIZE,
           L1D_PQ_SIZE, L1D_MSHR_SIZE, L1D_CQ_SIZE},
       L2C{"L2C",       L2C_SET,       L2C_WAY,     L2C_SET *L2C_WAY,
-          L2C_SET_S,   L2C_WAY_S,     L2C_WQ_SIZE, L2C_RQ_SIZE,
+          L2C_SET_SPEC,   L2C_WAY_SPEC,     L2C_WQ_SIZE, L2C_RQ_SIZE,
           L2C_PQ_SIZE, L2C_MSHR_SIZE, L2C_CQ_SIZE};
 
   // trace cache for previously decoded instructions
