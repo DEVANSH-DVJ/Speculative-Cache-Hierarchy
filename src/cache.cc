@@ -270,12 +270,14 @@ void CACHE::handle_fill() {
 
         update_fill_cycle();
       }
-    } else {
+    }
+    
+    // Cache nature is speculative hierarchy
+    else {
       // Miss due to timestamp being larger than others, hence, cant replace.
-      if (way == NUM_WAY){
-        do_fill = 0;
-        // Send the request again by adding it to own RQ
-        add_rq(&MSHR.entry[mshr_index]);
+      if (way == NUM_WAY_SPEC){
+        // do_fill = 0;
+        way = 0;
       }
       if (do_fill) {
         // COLLECT STATS
@@ -347,11 +349,10 @@ void CACHE::handle_fill() {
           */
           total_miss_latency += current_miss_latency;
         }
+          MSHR.remove_queue(&MSHR.entry[mshr_index]);
+          MSHR.num_returned--;
 
       }
-      // Remove from queue, even if not written
-      MSHR.remove_queue(&MSHR.entry[mshr_index]);
-      MSHR.num_returned--;
 
       update_fill_cycle();
     }
@@ -1307,9 +1308,9 @@ void CACHE::handle_prefetch() {
 }
 
 void CACHE::operate() {
+  reads_available_this_cycle = MAX_READ;
   handle_fill();
   handle_writeback();
-  reads_available_this_cycle = MAX_READ;
   handle_read();
   commit_blocks();
   if (PQ.occupancy && (reads_available_this_cycle > 0))
@@ -2205,7 +2206,7 @@ void CACHE::commit_blocks() {
     uint32_t set = get_set(spec_packet->address, SPECULATIVE_HIERARCHY);
     int way = check_hit(spec_packet, SPECULATIVE_HIERARCHY);
 
-    if ((way > 0) && (way < NUM_WAY_SPEC)) {
+    if ((way >= 0) && (NUM_SET_SPEC != 0)) {
       // move to normal heirarchy
       uint32_t target_set, target_way;
 
