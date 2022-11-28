@@ -4,7 +4,8 @@ from multiprocessing import Pool
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-models = ['bimodal-no-no-no-no-lru-1core']
+models = ['baseline', 'ALL-0.25x', 'ALL-0.5x',
+          'ALL-1x', 'NOALL', 'NOL2C', 'NOL2C-NOLLC', 'NOLLC']
 
 
 def build(model: str):
@@ -13,10 +14,11 @@ def build(model: str):
     os.system(f'cd {BASE_DIR} && ./build_champsim.sh {params}')
 
 
-def run(trace: str):
-    print(trace)
-    for model in models:
-        os.system(f'cd {BASE_DIR} && ./run_champsim.sh {model} 1 1 {trace}')
+def run(pair):
+    trace: str = pair[0]
+    model: str = pair[1]
+    print(trace, model)
+    os.system(f'cd {BASE_DIR} && ./run_champsim.sh {model} 1 1 {trace}')
 
 
 if __name__ == '__main__':
@@ -29,11 +31,12 @@ if __name__ == '__main__':
     # for model in models:
     #     build(model)
 
-    traces = []
+    run_pairs = []
     with open(os.path.join(BASE_DIR, filename)) as f:
         for line in f:
             trace = line.strip()
-            traces.append(trace)
+            for model in models:
+                run_pairs.append((trace, model))
 
     pool = Pool(processes=8)
-    pool.map(run, traces)
+    pool.map(run, run_pairs)
