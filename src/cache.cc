@@ -42,6 +42,7 @@ void CACHE::handle_fill() {
       //                   block[set], MSHR.entry[mshr_index].ip,
       //                   MSHR.entry[mshr_index].full_addr,
       //                   MSHR.entry[mshr_index].instr_id);
+      if (NUM_SET_SPEC != 0)
       way = timestamp_victim(fill_cpu, MSHR.entry[mshr_index].instr_id, set,
                              spec_block[set], MSHR.entry[mshr_index].ip,
                              MSHR.entry[mshr_index].full_addr,
