@@ -10,6 +10,9 @@
 #endif
 #define DEADLOCK_CYCLE 1000000
 
+// #define NTH_INSTR_SPEC
+// #define SPEC_INST_CLASSIFICATOIN
+
 using namespace std;
 
 // CORE PROCESSOR
