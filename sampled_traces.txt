@@ -1,3 +1,5 @@
-./clientservertraces/client_001.champsimtrace.xz
-./clientservertraces/server_001.champsimtrace.xz
+./clientservertraces/client_007.champsimtrace.xz
+./clientservertraces/server_014.champsimtrace.xz
 ./spec17/600.perlbench_s-570B.champsimtrace.xz
+./spec17/641.leela_s-1083B.champsimtrace.xz
+./spec17/623.xalancbmk_s-10B.champsimtrace.xz
