@@ -2205,7 +2205,7 @@ void CACHE::commit_blocks() {
     uint32_t set = get_set(spec_packet->address, SPECULATIVE_HIERARCHY);
     int way = check_hit(spec_packet, SPECULATIVE_HIERARCHY);
 
-    if (way > 0) {
+    if ((way > 0) && (way < NUM_WAY_SPEC)) {
       // move to normal heirarchy
       uint32_t target_set, target_way;
 
@@ -2236,6 +2236,8 @@ void CACHE::commit_blocks() {
       fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
 
       // @Sameer: Can we mark the speculative block as available?
+      // Yes, invalidating it
+      spec_block[set][way].valid = 0;
     }
 
     // If this is not the last level, then send the request to next lower level
