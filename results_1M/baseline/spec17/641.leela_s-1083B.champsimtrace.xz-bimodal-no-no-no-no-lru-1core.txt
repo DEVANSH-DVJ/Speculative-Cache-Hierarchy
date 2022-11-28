@@ -11,9 +11,9 @@ Off-chip DRAM Size: 4096 MB Channels: 1 Width: 64-bit Data Rate: 3200 MT/s
 CPU 0 runs /home/devansh/PROJECTS/Speculative-Cache-Hierarchy/traces/./spec17/641.leela_s-1083B.champsimtrace.xz
 CPU 0 Bimodal branch predictor
 
-Warmup complete CPU 0 instructions: 1000003 cycles: 455934 (Simulation time: 0 hr 0 min 3 sec) 
+Warmup complete CPU 0 instructions: 1000003 cycles: 455934 (Simulation time: 0 hr 0 min 4 sec) 
 
-Finished CPU 0 instructions: 1000000 cycles: 1270814 cumulative IPC: 0.786897 (Simulation time: 0 hr 0 min 5 sec) 
+Finished CPU 0 instructions: 1000000 cycles: 1270814 cumulative IPC: 0.786897 (Simulation time: 0 hr 0 min 6 sec) 
 
 ChampSim completed all CPUs
 

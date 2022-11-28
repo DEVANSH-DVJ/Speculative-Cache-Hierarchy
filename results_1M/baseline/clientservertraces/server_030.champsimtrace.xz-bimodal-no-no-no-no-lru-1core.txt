@@ -11,7 +11,7 @@ Off-chip DRAM Size: 4096 MB Channels: 1 Width: 64-bit Data Rate: 3200 MT/s
 CPU 0 runs /home/devansh/PROJECTS/Speculative-Cache-Hierarchy/traces/./clientservertraces/server_030.champsimtrace.xz
 CPU 0 Bimodal branch predictor
 
-Warmup complete CPU 0 instructions: 1000003 cycles: 352220 (Simulation time: 0 hr 0 min 3 sec) 
+Warmup complete CPU 0 instructions: 1000003 cycles: 352220 (Simulation time: 0 hr 0 min 4 sec) 
 
 Finished CPU 0 instructions: 1000003 cycles: 1325679 cumulative IPC: 0.754333 (Simulation time: 0 hr 0 min 6 sec) 
 

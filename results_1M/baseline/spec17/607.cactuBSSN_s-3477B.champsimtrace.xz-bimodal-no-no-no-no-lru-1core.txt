@@ -13,7 +13,7 @@ CPU 0 Bimodal branch predictor
 
 Warmup complete CPU 0 instructions: 1000001 cycles: 480098 (Simulation time: 0 hr 0 min 4 sec) 
 
-Finished CPU 0 instructions: 1000000 cycles: 838745 cumulative IPC: 1.19226 (Simulation time: 0 hr 0 min 8 sec) 
+Finished CPU 0 instructions: 1000000 cycles: 838745 cumulative IPC: 1.19226 (Simulation time: 0 hr 0 min 7 sec) 
 
 ChampSim completed all CPUs
 
