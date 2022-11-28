@@ -229,8 +229,8 @@ public:
 
   void handle_fill(), handle_writeback(), handle_read(), handle_prefetch();
 
-  void add_mshr(PACKET *packet), update_fill_cycle(),
-      llc_initialize_replacement(),
+  void add_mshr(PACKET *packet, uint8_t returned_status = INFLIGHT),
+      update_fill_cycle(), llc_initialize_replacement(),
       update_replacement_state(uint32_t cpu, uint32_t set, uint32_t way,
                                uint64_t full_addr, uint64_t ip,
                                uint64_t victim_addr, uint32_t type,

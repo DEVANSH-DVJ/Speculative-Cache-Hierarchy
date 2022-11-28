@@ -360,7 +360,9 @@ void CACHE::handle_fill() {
       } else {
         PACKET temp_packet = MSHR.entry[mshr_index];
         MSHR.remove_queue(&MSHR.entry[mshr_index]);
-        add_mshr(&temp_packet);
+        temp_packet.event_cycle = current_core_cycle[fill_cpu];
+
+        add_mshr(&temp_packet, COMPLETED);
       }
 
       update_fill_cycle();
@@ -2132,7 +2134,7 @@ int CACHE::check_mshr(PACKET *packet) {
   return -1;
 }
 
-void CACHE::add_mshr(PACKET *packet) {
+void CACHE::add_mshr(PACKET *packet, uint8_t returned_status) {
   uint32_t index = 0;
 
   packet->cycle_enqueued = current_core_cycle[packet->cpu];
@@ -2142,7 +2144,7 @@ void CACHE::add_mshr(PACKET *packet) {
     if (MSHR.entry[index].address == 0) {
 
       MSHR.entry[index] = *packet;
-      MSHR.entry[index].returned = INFLIGHT;
+      MSHR.entry[index].returned = returned_status;
       MSHR.occupancy++;
 
       DP(if (warmup_complete[packet->cpu]) {
