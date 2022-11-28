@@ -1973,9 +1973,8 @@ void O3_CPU::complete_execution(uint32_t rob_index) {
         if (ROB.entry[rob_index].reg_RAW_producer)
           reg_RAW_release(rob_index);
 
-        if (ROB.entry[rob_index].speculative_bit) {
-          update_spec_blocks(&(ROB.entry[rob_index]), 1);
-        }
+        // if (ROB.entry[rob_index].speculative_bit) {
+        // }
 
         if (ROB.entry[rob_index].branch_mispredicted) {
           fetch_resume_cycle =
@@ -2655,6 +2654,7 @@ void O3_CPU::retire_rob() {
            << endl;
     });
 
+    update_spec_blocks(&(ROB.entry[ROB.head]), 1);
     ooo_model_instr empty_entry;
     ROB.entry[ROB.head] = empty_entry;
 
