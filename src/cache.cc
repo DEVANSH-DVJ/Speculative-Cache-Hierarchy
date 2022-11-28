@@ -19,7 +19,7 @@ void CACHE::handle_fill() {
 #endif
 
     uint32_t mshr_index = MSHR.next_fill_index;
-    uint8_t cache_nature = MSHR.entry[mshr_index].is_speculative;
+    uint8_t cache_nature = (NUM_SET_SPEC > 0) ? MSHR.entry[mshr_index].is_speculative : NORMAL_HIERARCHY;
 
     // find victim
     uint32_t set, way;
@@ -376,7 +376,7 @@ void CACHE::handle_writeback() {
     // access cache
     uint32_t set = get_set(WQ.entry[index].address, NORMAL_HIERARCHY);
     int way = check_hit(&WQ.entry[index], NORMAL_HIERARCHY);
-    uint8_t cache_nature = WQ.entry[index].is_speculative;
+    uint8_t cache_nature = (NUM_SET_SPEC > 0) ? WQ.entry[index].is_speculative : NORMAL_HIERARCHY;
     assert(cache_nature == NORMAL_HIERARCHY);
 
     if (way >= 0) { // writeback hit (or RFO hit for L1D)
@@ -691,7 +691,7 @@ void CACHE::handle_read() {
       // access cache
       uint32_t set = get_set(RQ.entry[index].address, NORMAL_HIERARCHY);
       int way = check_hit(&RQ.entry[index], NORMAL_HIERARCHY);
-      uint8_t cache_nature = RQ.entry[index].is_speculative;
+      uint8_t cache_nature = (NUM_SET_SPEC > 0) ? RQ.entry[index].is_speculative : NORMAL_HIERARCHY;
 
       if (way >= 0) { // read hit in normal hierarchy
 
