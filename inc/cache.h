@@ -128,7 +128,9 @@ public:
 
   uint64_t sim_access[NUM_CPUS][NUM_TYPES], sim_hit[NUM_CPUS][NUM_TYPES],
       sim_miss[NUM_CPUS][NUM_TYPES], roi_access[NUM_CPUS][NUM_TYPES],
-      roi_hit[NUM_CPUS][NUM_TYPES], roi_miss[NUM_CPUS][NUM_TYPES];
+      roi_hit[NUM_CPUS][NUM_TYPES], roi_miss[NUM_CPUS][NUM_TYPES],
+      spec_access[NUM_CPUS][NUM_TYPES], spec_hit[NUM_CPUS][NUM_TYPES], 
+      spec_miss[NUM_CPUS][NUM_TYPES], spec_commit_transfers[NUM_CPUS][NUM_TYPES];
 
   uint64_t total_miss_latency;
 
@@ -171,6 +173,10 @@ public:
         roi_access[i][j] = 0;
         roi_hit[i][j] = 0;
         roi_miss[i][j] = 0;
+        spec_access[i][j] = 0;
+        spec_hit[i][j] = 0;
+        spec_miss[i][j] = 0;
+        spec_commit_transfers[i][j] = 0;
       }
     }
 

@@ -281,11 +281,13 @@ void CACHE::handle_fill() {
         way = 0;
       }
       if (do_fill) {
+
         // COLLECT STATS
-        sim_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
-        sim_access[fill_cpu][MSHR.entry[mshr_index].type]++;
+        spec_miss[fill_cpu][MSHR.entry[mshr_index].type]++;
+        spec_access[fill_cpu][MSHR.entry[mshr_index].type]++;
 
         if (NUM_SET_SPEC != 0) fill_cache(set, way, &MSHR.entry[mshr_index], cache_nature);
+
 
         // RFO marks cache line dirty
         if (cache_type == IS_L1D) {
@@ -2236,6 +2238,8 @@ void CACHE::commit_blocks() {
       fill_packet.instr_id = spec_block[set][way].instr_id;
 
       fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
+      
+      spec_commit_transfers[cpu][spec_packet->type]++;
 
       // @Sameer: Can we mark the speculative block as available?
       // Yes, invalidating it
