@@ -130,7 +130,8 @@ public:
       sim_miss[NUM_CPUS][NUM_TYPES], roi_access[NUM_CPUS][NUM_TYPES],
       roi_hit[NUM_CPUS][NUM_TYPES], roi_miss[NUM_CPUS][NUM_TYPES],
       spec_access[NUM_CPUS][NUM_TYPES], spec_hit[NUM_CPUS][NUM_TYPES], 
-      spec_miss[NUM_CPUS][NUM_TYPES], spec_commit_transfers[NUM_CPUS][NUM_TYPES];
+      spec_miss[NUM_CPUS][NUM_TYPES], spec_commit_transfers[NUM_CPUS],
+      spec_squash[NUM_CPUS];
 
   uint64_t total_miss_latency;
 
@@ -165,6 +166,8 @@ public:
     for (uint32_t i = 0; i < NUM_CPUS; i++) {
       upper_level_icache[i] = NULL;
       upper_level_dcache[i] = NULL;
+      spec_commit_transfers[i] = 0;
+      spec_squash[i] = 0;
 
       for (uint32_t j = 0; j < NUM_TYPES; j++) {
         sim_access[i][j] = 0;
@@ -176,7 +179,7 @@ public:
         spec_access[i][j] = 0;
         spec_hit[i][j] = 0;
         spec_miss[i][j] = 0;
-        spec_commit_transfers[i][j] = 0;
+        
       }
     }
 

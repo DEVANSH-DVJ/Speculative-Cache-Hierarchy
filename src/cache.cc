@@ -2210,40 +2210,51 @@ void CACHE::commit_blocks() {
     int way = check_hit(spec_packet, SPECULATIVE_HIERARCHY);
 
     if ((way >= 0) && (NUM_SET_SPEC != 0)) {
-      // move to normal heirarchy
-      uint32_t target_set, target_way;
 
-      target_set = get_set(spec_packet->address, NORMAL_HIERARCHY);
-      if (cache_type == IS_LLC) {
-        target_way =
-            llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
-                            block[target_set], spec_packet->ip,
-                            spec_packet->full_addr, spec_packet->type);
-      } else {
-        target_way = find_victim(spec_packet->cpu, spec_packet->instr_id,
-                                 target_set, block[target_set], spec_packet->ip,
-                                 spec_packet->full_addr, spec_packet->type);
+      // if commit then add to normal hierarchy
+      if (spec_packet->type == COMMIT_LOAD) {
+
+        // move to normal heirarchy
+        uint32_t target_set, target_way;
+
+        target_set = get_set(spec_packet->address, NORMAL_HIERARCHY);
+        if (cache_type == IS_LLC) {
+          target_way =
+              llc_find_victim(spec_packet->cpu, spec_packet->instr_id, target_set,
+                              block[target_set], spec_packet->ip,
+                              spec_packet->full_addr, spec_packet->type);
+        } else {
+          target_way = find_victim(spec_packet->cpu, spec_packet->instr_id,
+                                  target_set, block[target_set], spec_packet->ip,
+                                  spec_packet->full_addr, spec_packet->type);
+        }
+
+        PACKET fill_packet;
+        fill_packet.delta = spec_block[set][way].delta;
+        fill_packet.depth = spec_block[set][way].depth;
+        fill_packet.signature = spec_block[set][way].signature;
+        fill_packet.confidence = spec_block[set][way].confidence;
+        fill_packet.address = spec_block[set][way].tag;
+        fill_packet.full_addr = spec_block[set][way].full_addr;
+        fill_packet.data = spec_block[set][way].data;
+        fill_packet.ip = spec_block[set][way].ip;
+        fill_packet.cpu = spec_block[set][way].cpu;
+        fill_packet.instr_id = spec_block[set][way].instr_id;
+
+        fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
+        
+        spec_commit_transfers[cpu]++;
+
+        // @Sameer: Can we mark the speculative block as available?
+        // Yes, invalidating it
+        spec_block[set][way].valid = 0;
+      
+      }
+      else {
+        spec_block[set][way].valid = 0; // invalidate
+        spec_squash[cpu]++;
       }
 
-      PACKET fill_packet;
-      fill_packet.delta = spec_block[set][way].delta;
-      fill_packet.depth = spec_block[set][way].depth;
-      fill_packet.signature = spec_block[set][way].signature;
-      fill_packet.confidence = spec_block[set][way].confidence;
-      fill_packet.address = spec_block[set][way].tag;
-      fill_packet.full_addr = spec_block[set][way].full_addr;
-      fill_packet.data = spec_block[set][way].data;
-      fill_packet.ip = spec_block[set][way].ip;
-      fill_packet.cpu = spec_block[set][way].cpu;
-      fill_packet.instr_id = spec_block[set][way].instr_id;
-
-      fill_cache(target_set, target_way, &fill_packet, NORMAL_HIERARCHY);
-      
-      spec_commit_transfers[cpu][spec_packet->type]++;
-
-      // @Sameer: Can we mark the speculative block as available?
-      // Yes, invalidating it
-      spec_block[set][way].valid = 0;
     }
 
     // If this is not the last level, then send the request to next lower level

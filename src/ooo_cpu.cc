@@ -1973,9 +1973,8 @@ void O3_CPU::complete_execution(uint32_t rob_index) {
         if (ROB.entry[rob_index].reg_RAW_producer)
           reg_RAW_release(rob_index);
 
-        if (ROB.entry[rob_index].speculative_bit &&
-            !ROB.entry[rob_index].branch_mispredicted) {
-          commit_blocks(&(ROB.entry[rob_index]));
+        if (ROB.entry[rob_index].speculative_bit) {
+          update_spec_blocks(&(ROB.entry[rob_index]), 1);
         }
 
         if (ROB.entry[rob_index].branch_mispredicted) {
@@ -2664,15 +2663,15 @@ void O3_CPU::retire_rob() {
   }
 }
 
-void O3_CPU::commit_blocks(ooo_model_instr *arch_instr) {
-  commit_itlb_memory(arch_instr);
-  commit_instr_memory(arch_instr);
-  commit_dtlb_memory(arch_instr);
-  commit_data_memory(arch_instr);
+void O3_CPU::update_spec_blocks(ooo_model_instr *arch_instr, int commit_flag) {
+  update_spec_itlb_memory(arch_instr, commit_flag);
+  update_spec_instr_memory(arch_instr, commit_flag);
+  update_spec_dtlb_memory(arch_instr, commit_flag);
+  update_spec_data_memory(arch_instr, commit_flag);
 }
 
 // Commits memory operations
-void O3_CPU::commit_data_memory(ooo_model_instr *arch_instr) {
+void O3_CPU::update_spec_data_memory(ooo_model_instr *arch_instr, int commit_flag) {
 
   for (uint32_t i = 0; i < NUM_INSTR_SOURCES; i++) {
 
@@ -2694,7 +2693,7 @@ void O3_CPU::commit_data_memory(ooo_model_instr *arch_instr) {
       commit_packet.producer = 0;
       commit_packet.ip =
           arch_instr->ip; // but the instruction is now committed from the ROB ??
-      commit_packet.type = COMMIT_LOAD;
+      commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
       commit_packet.event_cycle = current_core_cycle[cpu];
@@ -2729,7 +2728,7 @@ void O3_CPU::commit_data_memory(ooo_model_instr *arch_instr) {
       commit_packet.producer = 0;
       commit_packet.ip =
           arch_instr->ip; // but the instruction is now committed from the ROB ??
-      commit_packet.type = COMMIT_LOAD;
+      commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
       commit_packet.event_cycle = current_core_cycle[cpu];
@@ -2746,7 +2745,7 @@ void O3_CPU::commit_data_memory(ooo_model_instr *arch_instr) {
 }
 
   // Commits memory operations
-void O3_CPU::commit_instr_memory(ooo_model_instr *arch_instr) {
+void O3_CPU::update_spec_instr_memory(ooo_model_instr *arch_instr, int commit_flag) {
 
     PACKET commit_packet;
     commit_packet.is_speculative = 1; //* L0_SPEC
@@ -2764,7 +2763,7 @@ void O3_CPU::commit_instr_memory(ooo_model_instr *arch_instr) {
     commit_packet.producer = 0;
     commit_packet.ip =
         arch_instr->ip; // but the instruction is now committed from the ROB ??
-    commit_packet.type = COMMIT_LOAD;
+    commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
     commit_packet.asid[0] = 0;
     commit_packet.asid[1] = 0;
     commit_packet.event_cycle = current_core_cycle[cpu];
@@ -2779,7 +2778,7 @@ void O3_CPU::commit_instr_memory(ooo_model_instr *arch_instr) {
 }
 
   // Commits memory operations
-void O3_CPU::commit_itlb_memory(ooo_model_instr *arch_instr) {
+void O3_CPU::update_spec_itlb_memory(ooo_model_instr *arch_instr, int commit_flag) {
 
     PACKET commit_packet;
     commit_packet.is_speculative = 1; 
@@ -2797,7 +2796,7 @@ void O3_CPU::commit_itlb_memory(ooo_model_instr *arch_instr) {
     commit_packet.producer = 0;
     commit_packet.ip =
         arch_instr->ip; // but the instruction is now committed from the ROB ??
-    commit_packet.type = COMMIT_LOAD;
+    commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
     commit_packet.asid[0] = 0;
     commit_packet.asid[1] = 0;
     commit_packet.event_cycle = current_core_cycle[cpu];
@@ -2813,7 +2812,7 @@ void O3_CPU::commit_itlb_memory(ooo_model_instr *arch_instr) {
 
 
 // Commits memory operations
-void O3_CPU::commit_dtlb_memory(ooo_model_instr *arch_instr) {
+void O3_CPU::update_spec_dtlb_memory(ooo_model_instr *arch_instr, int commit_flag) {
 
   for (uint32_t i = 0; i < NUM_INSTR_SOURCES; i++) {
 
@@ -2835,7 +2834,7 @@ void O3_CPU::commit_dtlb_memory(ooo_model_instr *arch_instr) {
       commit_packet.producer = 0;
       commit_packet.ip =
           arch_instr->ip; // but the instruction is now committed from the ROB ??
-      commit_packet.type = COMMIT_LOAD;
+      commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
       commit_packet.event_cycle = current_core_cycle[cpu];
@@ -2870,7 +2869,7 @@ void O3_CPU::commit_dtlb_memory(ooo_model_instr *arch_instr) {
       commit_packet.producer = 0;
       commit_packet.ip =
           arch_instr->ip; // but the instruction is now committed from the ROB ??
-      commit_packet.type = COMMIT_LOAD;
+      commit_packet.type = commit_flag ? COMMIT_LOAD : SQUASH_LOAD;
       commit_packet.asid[0] = 0;
       commit_packet.asid[1] = 0;
       commit_packet.event_cycle = current_core_cycle[cpu];
