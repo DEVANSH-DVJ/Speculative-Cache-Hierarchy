@@ -8,6 +8,8 @@ Add traces to `traces/` folder.
 
 ```bash
 bash list_data.sh
-python run_all.py all_traces.txt
-python summarize.py results_1M_list.txt
+python run_all.py all_traces.txt # Time Consuming
+bash list_data.sh
+python extract.py results_1M_list.txt
+python summarize.py extracted_results.csv
 ```
