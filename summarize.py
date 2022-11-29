@@ -1,42 +1,73 @@
 import os
 import sys
-import csv
+import pandas as pd
+
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SUMMARY_DIR = os.path.join(BASE_DIR, 'summary')
 
+all_spec_diff_size = ['ALL-0.125x',
+                      'ALL-0.25x',
+                      'ALL-0.5x',
+                      'ALL-1x']
 
-def extract(result_file: str):
-    print(result_file)
-    params = result_file.split('/')
-    num_instructions = params[0][8:]
-    model = params[1]
-    trace_type = params[2]
-    trace_name = params[3][:-4]
+all_spec_diff_setup = ['ALL-1x',
+                       'NOALL',
+                       'NOL2C',
+                       'NOL2C-NOLLC',
+                       'NOLLC']
 
-    with open(result_file, 'r') as f:
-        lines = f.readlines()
-        l21 = lines[21].split()
-        IPC = l21[4]
+nth_spec_diff_setup = ['NTH-ALL-1x',
+                       'NTH-NOALL',
+                       'NTH-NOL2C',
+                       'NTH-NOL2C-NOLLC',
+                       'NTH-NOLLC']
 
-    return num_instructions, model, trace_type, trace_name, IPC
-
+instr_spec_diff_setup = ['INSTR-ALL-1x',
+                         'INSTR-NOALL',
+                         'INSTR-NOL2C',
+                         'INSTR-NOL2C-NOLLC',
+                         'INSTR-NOLLC']
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print('Usage: python run.py <results_list>')
+        print('Usage: python extract.py <results_list>')
         sys.exit(1)
 
     filename = sys.argv[1]
-    out_file = open("results.csv", 'w')
+    df = pd.read_csv(os.path.join(BASE_DIR, filename))
 
-    results = []
-    with open(os.path.join(BASE_DIR, filename)) as f:
-        for line in f:
-            results.append(line.strip())
+    model_list = list(df['model'].unique())
 
-    writer = csv.writer(out_file)
-    print('Total results: {}'.format(len(results)))
-    writer.writerow(['#instr', 'model', 'trace_type', 'trace_name', 'IPC'])
-    for row in results:
-        writer.writerow(extract(row))
-    out_file.close
+    assert 'baseline' in model_list, 'baseline not found in model list'
+    for model in all_spec_diff_size:
+        assert model in model_list, 'Model {} not found'.format(model)
+    for model in all_spec_diff_setup:
+        assert model in model_list, 'Model {} not found'.format(model)
+    for model in nth_spec_diff_setup:
+        assert model in model_list, 'Model {} not found'.format(model)
+    for model in instr_spec_diff_setup:
+        assert model in model_list, 'Model {} not found'.format(model)
+
+    print(df)
+    trace_list = list(df['trace_name'].unique())
+    print(trace_list)
+
+    res = df.pivot_table(index=['#instr', 'trace_type', 'trace_name'],
+                         columns=['model'],
+                         values='IPC',
+                         aggfunc='mean').reset_index()
+
+    for model in model_list:
+        res[model] = res[model] / res['baseline']
+
+    res.loc['mean'] = res.prod(axis=0) ** (1.0 / len(res))
+    res.at['mean', '#instr'] = 'gmean'
+    res.at['mean', 'trace_type'] = 'gmean'
+    res.at['mean', 'trace_name'] = 'gmean'
+
+    print(res)
+    pd.DataFrame(res, columns=['#instr', 'trace_type', 'trace_name'] + [model for model in all_spec_diff_size]).to_csv(os.path.join(SUMMARY_DIR, 'all_spec_diff_size.csv'), index=False)
+    pd.DataFrame(res, columns=['#instr', 'trace_type', 'trace_name'] + [model for model in all_spec_diff_setup]).to_csv(os.path.join(SUMMARY_DIR, 'all_spec_diff_setup.csv'), index=False)
+    pd.DataFrame(res, columns=['#instr', 'trace_type', 'trace_name'] + [model for model in nth_spec_diff_setup]).to_csv(os.path.join(SUMMARY_DIR, 'nth_spec_diff_setup.csv'), index=False)
+    pd.DataFrame(res, columns=['#instr', 'trace_type', 'trace_name'] + [model for model in instr_spec_diff_setup]).to_csv(os.path.join(SUMMARY_DIR, 'instr_spec_diff_setup.csv'), index=False)
