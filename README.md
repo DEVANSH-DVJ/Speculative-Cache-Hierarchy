@@ -9,14 +9,22 @@ Extension of GhostMinion (https://dl.acm.org/doi/10.1145/3466752.3480074) for co
 2. Run the following commands to simulate the traces on different models
 
 ```bash
-bash list_data.sh
-python run_all.py all_traces.txt  # Time Consuming
-bash list_data.sh
+# Simulation with 1M Instructions
+bash list_data.sh  # Setup Input
+python run_all.py all_traces.txt  # Will run all SPEC17 & ClientServer traces
+```
+
+```bash
+# Data Analysis
+bash list_data.sh  # Setup input
 python extract.py results_1M_list.txt  # Extract results from ChampSim output
 python summarize.py extracted_results.csv  # Summarize results for each trace
 ```
 
 3. Summary of results will be stored in `summary/` folder (uploaded to https://docs.google.com/spreadsheets/d/1FTAI6n2S5PncKy_ky9HtW7kDRofKTGrvTM61a7VmJno/edit?usp=sharing)
+
+- `all_spec_diff_size.csv` contains results for different sizes of speculative cache considering all instructions as speculative
+- `all_spec_diff_setup.csv` contains results for different models of speculative cache considering all instructions as speculative
 
 ## Results
 
