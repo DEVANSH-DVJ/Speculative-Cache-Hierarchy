@@ -4,25 +4,28 @@ from multiprocessing import Pool
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-models = ['baseline',
-          'ALL-0.125x',
-          'ALL-0.25x',
-          'ALL-0.5x',
-          'ALL-1x',
-          'INSTR-ALL-1x',
-          'INSTR-NOALL',
-          'INSTR-NOL2C',
-          'INSTR-NOL2C-NOLLC',
-          'INSTR-NOLLC',
-          'NOALL',
-          'NOL2C',
-          'NOL2C-NOLLC',
-          'NOLLC',
-          'NTH-ALL-1x',
-          'NTH-NOALL',
-          'NTH-NOL2C',
-          'NTH-NOL2C-NOLLC',
-          'NTH-NOLLC']
+models = [
+    'baseline',
+    'ALL-0.0625x',
+    'ALL-0.125x',
+    'ALL-0.25x',
+    'ALL-0.5x',
+    'ALL-1x',
+    'INSTR-ALL-1x',
+    'INSTR-NOALL',
+    'INSTR-NOL2C',
+    'INSTR-NOL2C-NOLLC',
+    'INSTR-NOLLC',
+    'NOALL',
+    'NOL2C',
+    'NOL2C-NOLLC',
+    'NOLLC',
+    'NTH-ALL-1x',
+    'NTH-NOALL',
+    'NTH-NOL2C',
+    'NTH-NOL2C-NOLLC',
+    'NTH-NOLLC'
+]
 
 
 def build(model: str):

@@ -6,7 +6,8 @@ import pandas as pd
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SUMMARY_DIR = os.path.join(BASE_DIR, 'summary')
 
-all_spec_diff_size = ['ALL-0.125x',
+all_spec_diff_size = ['ALL-0.0625x',
+                      'ALL-0.125x',
                       'ALL-0.25x',
                       'ALL-0.5x',
                       'ALL-1x']
@@ -51,7 +52,6 @@ if __name__ == '__main__':
 
     print(df)
     trace_list = list(df['trace_name'].unique())
-    print(trace_list)
 
     res = df.pivot_table(index=['#instr', 'trace_type', 'trace_name'],
                          columns=['model'],
