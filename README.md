@@ -4,7 +4,9 @@ Extension of GhostMinion (https://dl.acm.org/doi/10.1145/3466752.3480074) for co
 
 ## Testing
 
-Add traces to `traces/` folder.
+1. Add traces to `traces/` folder (`.gitkeep` has been added as placeholder)
+
+2. Run the following commands to simulate the traces on different models
 
 ```bash
 bash list_data.sh
