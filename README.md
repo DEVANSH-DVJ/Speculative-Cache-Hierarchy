@@ -16,6 +16,8 @@ python extract.py results_1M_list.txt  # Extract results from ChampSim output
 python summarize.py extracted_results.csv  # Summarize results for each trace
 ```
 
+3. Summary of results will be stored in `summary/` folder (uploaded to https://docs.google.com/spreadsheets/d/1FTAI6n2S5PncKy_ky9HtW7kDRofKTGrvTM61a7VmJno/edit?usp=sharing)
+
 ## Results
 
 1-1.5% performance slowdown
